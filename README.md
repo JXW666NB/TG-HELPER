@@ -9,7 +9,7 @@
   <img src="https://img.shields.io/badge/python-3.9+-green" alt="python">
   <img src="https://img.shields.io/badge/license-MIT-orange" alt="license">
   <img src="https://img.shields.io/badge/tools-70+-brightgreen" alt="tools">
-  <img src="https://img.shields.io/badge/Gitee-JXWNB666-red" alt="gitee">
+  <img src="https://img.shields.io/badge/Gitee-JXW666NB-red" alt="github">
 </p>
 
 ---
