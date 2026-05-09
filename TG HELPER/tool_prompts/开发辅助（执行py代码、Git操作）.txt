@@ -1,0 +1,11 @@
+【工具列表】
+
+1. execute_code(code, language="python") - 执行 Python 代码片段（危险操作，需用户确认）。
+2. git_clone(repo_url, dest_dir=".") - 克隆 Git 仓库。
+3. git_commit(repo_path, message) - 在指定仓库提交更改。
+4. git_push(repo_path, remote="origin", branch="main") - 推送到远程仓库。
+
+【注意事项】
+- 执行代码默认需要用户确认，可在设置中关闭。
+- Git 操作需要安装 GitPython 库，如未安装，工具会提示。
+- 确保当前用户有权限操作 Git 仓库。

@@ -1,0 +1,14 @@
+{
+  "deepseek-r1:1.5b": {
+    "path": "ollama://deepseek-r1:1.5b",
+    "info": {}
+  },
+  "qwen2.5:1.5b": {
+    "path": "ollama://qwen2.5:1.5b",
+    "info": {}
+  },
+  "gemma2:2b": {
+    "path": "ollama://gemma2:2b",
+    "info": {}
+  }
+}

@@ -1,0 +1,11 @@
+【工具列表】
+
+1. list_serial_ports() - 列出当前电脑上所有可用的串口及其描述。
+2. serial_send(port, data, baudrate=9600, timeout=1) - 向指定串口发送字符串数据（ASCII 编码）。
+3. serial_read(port, baudrate=9600, timeout=1) - 从串口读取一行数据（以换行符结尾）。
+4. delay(seconds) - 让程序等待指定的秒数。
+
+【注意事项】
+- 串口通信需要 pyserial 库。
+- 发送数据时，请确保波特率与设备匹配。
+- delay 可用于控制硬件时序或闪烁间隔。

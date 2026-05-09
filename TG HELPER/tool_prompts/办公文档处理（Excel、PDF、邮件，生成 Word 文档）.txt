@@ -1,0 +1,11 @@
+【工具列表】
+
+1. read_excel(filepath, sheet_name=None) - 读取 Excel 文件，返回前 10 行预览。
+2. write_excel(filepath, data, columns=None) - 将二维列表数据写入 Excel 文件。
+3. generate_pdf(filepath, title, content) - 生成简单的文本 PDF。
+4. send_email(to, subject, body, attachments=None) - 发送邮件（需在设置中配置邮箱 SMTP）。
+5.generate_docx(filepath, title, content): 生成简单的 Word 文档（.docx）。filepath 必须包含 .docx 后缀，title 为标题，content 为正文内容（支持多行，用 \\n 分隔）。
+【注意事项】
+- Excel 操作需要安装 pandas 和 openpyxl（或 xlwt）。
+- PDF 生成需要 reportlab 库。
+- 发送邮件前请确保邮箱 SMTP 信息已配置，否则工具会返回配置提示。

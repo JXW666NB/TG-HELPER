@@ -1,0 +1,13 @@
+{
+  "tasks": {
+    "1774653691674": {
+      "message": "执行广西政府采购需求报告生成任务：1. 打开浏览器访问 https://zfcg.gxzf.gov.cn/site/category?parentId=66485&childrenCode=ZcyAnnouncement；2. 提取近10日内IT相关采购信息（电脑类、信息化、网络类、集成类）；3. 按地理范围（自治区本级、南宁市）分类汇总；4. 生成Word文档报告；5. 保存到桌面；6. 发送邮件到724727807@qq.com。",
+      "trigger": "cron",
+      "trigger_args": {
+        "cron": "0 12 * * *"
+      },
+      "enabled": true,
+      "id": "1774653691674"
+    }
+  }
+}

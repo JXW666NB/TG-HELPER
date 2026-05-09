@@ -1,0 +1,17 @@
+【工具列表】
+
+1. send_qq_file(target_type, target_id, file_path, message="") - 通过 NapCat HTTP API 发送文件到 QQ。target_type 为 'private' 或 'group'，target_id 为 QQ 号或群号。
+2. recall_message(message_id) - 撤回消息。message_id 可以是数字消息ID，也可以是 "last"（撤回上一条发送的消息）。
+3. add_friend(user_id, message) - 向指定 QQ 号发送好友申请。
+4. join_group(group_id, message) - 申请加入指定群聊。
+【QQ语音工具】
+- send_voice(target_type, target_id, voice_file): 发送本地语音文件到QQ。voice_file可以是本地路径或网络URL（支持.mp3等格式）。
+- text_to_voice(text, output_path=None, voice="zh-CN-XiaoxiaoNeural"): 将文本合成为语音文件，返回文件路径。
+- send_text_voice(target_type, target_id, text, voice="zh-CN-XiaoxiaoNeural"): 将文本合成为语音并发送到QQ（组合工具）。
+- send_music_as_voice(target_type, target_id, music_url): 从网络下载音乐并以语音形式发送到QQ（直接使用URL）。
+【QQ消息发送】
+- send_to(target_type, target_id, content): 向指定QQ号或群号发送消息（支持文本、图片、文件、语音、表情）。content 支持特殊标记：[IMAGE:path]、[FILE:path]、[VOICE:path]、[FACE:id]。示例：send_to("group", "123456", "大家好！[IMAGE:C:/pic.jpg][FACE:14]")
+【注意事项】
+- 发送文件需配置 NapCat HTTP 地址和 Access Token。
+- recall_message 使用 "last" 时，会撤回自己发送的最新一条消息。
+- 好友/群申请功能依赖 NapCat API，需确保权限。

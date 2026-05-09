@@ -1,0 +1,10 @@
+【工具列表】
+
+1. execute_command(command, cwd=None) - 执行系统命令，返回 stdout/stderr 和返回码。
+2. system_info() - 获取 CPU、内存、磁盘、操作系统信息（需要 psutil 库）。
+3. install_python_package(package_name) - 通过 pip 安装 Python 包（需用户确认，可配置）。
+
+【注意事项】
+- 执行命令可能涉及系统权限，请谨慎使用。
+- system_info 返回的信息为纯文本，可直接读取。
+- 安装包时，如果网络问题导致失败，请提示用户手动安装。

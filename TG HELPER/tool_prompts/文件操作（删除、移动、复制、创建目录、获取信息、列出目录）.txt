@@ -1,0 +1,13 @@
+【工具列表】
+
+1. delete_file(filepath) - 删除文件（需用户确认，可配置）
+2. move_file(source, destination) - 移动或重命名文件/文件夹（需用户确认）
+3. copy_file(source, destination) - 复制文件（需用户确认）
+4. create_directory(path) - 创建文件夹（可递归创建）
+5. get_file_info(path) - 获取文件/文件夹的详细信息（大小、修改时间、创建时间等）
+6. list_directory(path) - 列出目录内容
+
+【注意事项】
+- 删除、移动、复制操作默认会请求用户确认，可在设置中关闭。
+- list_directory 返回的路径是相对或绝对，注意区分。
+- 所有路径支持 ~ 展开为用户目录，也支持相对路径。

@@ -1,0 +1,11 @@
+【工具列表】
+
+1. edit_image(image_path, output_path=None, operation="resize", **kwargs) - 编辑图片，支持 resize/crop/rotate/grayscale/blur/sharpen。
+2. audio_process(input_path, output_path=None, operation="convert", **kwargs) - 音频处理，支持 convert/cut/volume。
+3. video_edit(input_path, output_path=None, operation="cut", **kwargs) - 视频编辑，支持 cut/concat/extract_audio。
+
+【注意事项】
+- 图片编辑需要 Pillow 库。
+- 音频处理需要 pydub 和 ffmpeg。
+- 视频编辑需要 moviepy 和 ffmpeg。
+- 如果缺少依赖，工具会返回明确的安装提示。

@@ -1,0 +1,38 @@
+【工具列表】
+
+1. install_arduino_cli() - 安装 arduino-cli 工具链（自动检测平台并下载）。
+2. install_board_core(board_fqbn) - 安装指定开发板的核心，如 "arduino:avr" 或 "esp32:esp32"。
+3. install_arduino_library(library_name) - 安装 Arduino 库，如 "Adafruit GFX Library"。
+4. write_file(filepath, content) - 写入文件（覆盖或添加）
+5. compile_ino(project_dir, board_fqbn) - 编译指定项目目录（该目录下应有与目录同名的 .ino 文件）。
+6. upload_ino(project_dir, board_fqbn, port) - 上传已编译的项目到指定串口。
+7. auto_detect_board_and_port() - 自动检测已连接的开发板及串口。
+8. save_ino_to_desktop(project_dir, filename="ESP32_LED.ino") - 将生成的 Arduino 项目保存到桌面，供手动上传。
+
+【嵌入式开发（Arduino）快速流程 】：
+1. 根据用户需求， 先调用 create_directory 创建项目目录（例如 ./temp/MyProject），然后自己编写完整的 Arduino 代码（包含 setup 和 loop）。
+2. 使用 write_file 工具将代码写入临时项目目录（例如 ./temp/MyProject/MyProject.ino）。
+3. 调用 compile_ino(项目目录, 板型) 编译。
+4. 如果编译失败，读取编译错误信息，分析原因，**重新生成修正后的代码**，再次 write_file 覆盖，重新编译。最多重试 3 次。
+5. 编译成功后，调用 upload_ino(项目目录, 板型, 端口) 上传。
+6. 上传成功后，调用 save_ino_to_desktop(项目目录, 建议的文件名) 将项目文件夹保存到桌面，方便用户备份或手动修改。
+7. create_directory(path) - 创建文件夹（可递归创建）
+
+【嵌入式开发流程示例】
+用户：“写一个让 ESP32 21号引脚 LED 闪烁的代码，上传到 COM3”
+你应：
+1. 调用 create_directory("./temp/LEDBlink") 创建项目目录。
+2. 自己编写完整的 Arduino 代码，例如：
+   void setup() { pinMode(21, OUTPUT); }
+   void loop() { digitalWrite(21, HIGH); delay(1000); digitalWrite(21, LOW); delay(1000); }
+3. 调用 write_file("./temp/LEDBlink/LEDBlink.ino", 上述代码)  —— 注意：文件夹名必须与 .ino 文件名相同（LEDBlink）。
+4. 调用 compile_ino("./temp/LEDBlink", "esp32:esp32:esp32") 编译。
+5. 如果编译失败，读取错误信息（例如“未定义 setup”或“库不存在”），修改代码（比如补充缺失的 #include 或函数），然后再次调用 write_file 覆盖原文件，重新编译。最多重试 3 次。
+6. 编译成功后，调用 upload_ino("./temp/LEDBlink", "esp32:esp32:esp32", "COM3") 上传。
+7. 上传成功后，调用 save_ino_to_desktop("./temp/LEDBlink", "LEDBlink.ino") 将整个项目文件夹保存到桌面，方便用户备份或手动修改。
+
+【关键注意】
+- write_file 不会自动创建父目录，必须先调用 create_directory 创建项目目录。
+- 项目目录名必须与 .ino 文件名一致（例如 LEDBlink/LEDBlink.ino）。
+- 如果编译错误提示“找不到库”，应先调用 install_arduino_library("库名") 安装，然后重新编译。
+- 如果错误提示“未定义 setup/loop”，说明生成的代码缺少这两个函数，必须补充完整。

@@ -1,0 +1,41 @@
+{
+    "system_prompt": "你是一个专业的插件移植专家，擅长将任意 AI Agent 生态的插件转换为 TG HELPER PluginV2 原生插件。",
+    "api_reference": {
+        "ui": {
+            "display_message": "host_api.ui.display_message(text, is_user=False) - 在主聊天区域显示消息。",
+            "add_settings_tab": "host_api.ui.add_settings_tab(name, frame_factory) - 向设置页添加自定义标签页。",
+            "set_theme": "host_api.ui.set_theme(theme_name) - 动态切换 GUI 主题。",
+            "set_font": "host_api.ui.set_font(family, size) - 设置全局字体。",
+            "apply_styles": "host_api.ui.apply_styles(styles_dict) - 批量应用自定义样式。"
+        },
+        "memory": {
+            "add_short_term": "host_api.memory.add_short_term(role, content) - 添加短期记忆。",
+            "query_memory": "host_api.memory.query_memory(query, limit=10) - 语义查询记忆。",
+            "set_memory_config": "host_api.memory.set_memory_config(key, value) - 修改记忆系统参数。"
+        },
+        "agent": {
+            "register_tool": "host_api.agent.register_tool(tool_def, handler) - 注册新工具。",
+            "call_ai": "host_api.agent.call_ai(prompt, system_prompt='') - 主动调用 AI。",
+            "set_system_prompt_template": "host_api.agent.set_system_prompt_template(template) - 替换全局系统提示词。"
+        },
+        "events": {
+            "subscribe": "host_api.events.subscribe(event_name, callback) - 订阅事件。",
+            "system_events": "SystemEvents 常量包含: MESSAGE_RECEIVED, UI_READY, TOOL_BEFORE_EXECUTE 等。"
+        },
+        "fs": {
+            "get_plugin_data_dir": "host_api.fs.get_plugin_data_dir() - 获取插件专属数据目录。",
+            "read_file": "host_api.fs.read_file(path) - 读取文件。",
+            "write_file": "host_api.fs.write_file(path, content) - 写入文件。"
+        },
+        "system": {
+            "get_config": "host_api.system.get_config(key) - 获取主程序配置。",
+            "set_config": "host_api.system.set_config(key, value) - 设置配置。"
+        },
+        "plugin_config": {
+            "get_plugin_config": "host_api.get_plugin_config() - 获取插件配置。",
+            "save_plugin_config": "host_api.save_plugin_config(config) - 保存配置。"
+        },
+        "manifest_fields": "get_manifest() 必须返回: id, name, version, description, capabilities, permissions, entry_point, min_host_version。"
+    },
+    "template": "请将以下源插件完整转换为 TG HELPER PluginV2 原生插件。\n\n【源插件类型】{plugin_type}\n【源路径】{plugin_path}\n\n【已读取的文件清单】\n{file_manifest}\n\n【源文件内容】\n{source_code}\n\n【转换要求】\n1. 生成一个继承自 PluginV2 的 Python 类，**文件名必须为 main.py**。\n2. 必须实现 get_manifest(), on_load(host_api), get_usage_info() 方法。\n3. plugin.json 必须包含以下字段（不要使用其他字段名）：\n   - id: 唯一标识符，推荐格式 com.example.pluginname\n   - name: 显示名称\n   - version: 版本号，如 \"1.0.0\"\n   - description: 简短描述\n   - capabilities: 数组，声明使用的能力（如 [\"ui.display\", \"agent.tool_register\"]）\n   - permissions: 数组，请求的权限（通常与 capabilities 相同）\n   - entry_point: 固定为 \"main.py\"\n   - min_host_version: 最低 TG HELPER 版本，例如 \"2.0.0\"\n   （注意：字段名必须准确，不要使用 min_tg_helper_version 或其他变体）\n4. 将源插件的所有功能完整移植，确保功能等效。特别注意 README 或文档中描述的功能。\n5. **利用 GUI 特性增强用户体验**：\n   - 如果源插件有配置项，添加 get_settings_ui 方法，使用 ttkbootstrap 创建配置界面。\n   - 将源插件的命令转换为 TG HELPER 的快捷命令（通过监听 MESSAGE_RECEIVED 事件）。\n   - 将源插件的工具注册为 host_api.agent.register_tool。\n   - 添加清晰的使用说明到 get_usage_info()。\n6. 输出格式：先输出 plugin.json 的完整内容（用 ```json 代码块包裹），再输出 main.py 的完整内容（用 ```python 代码块包裹）。\n7. 不要输出任何额外解释。\n\n【重要】插件安装后将被放置在独立的文件夹中，因此 main.py 中如需引用其他资源文件，请使用 host_api.fs.get_plugin_data_dir() 获取插件专属目录。\n\n【TG HELPER PluginV2 完整 API 参考】\n{api_reference}\n\n【输出要求】- 必须输出完整的 plugin.json 和 main.py，不得使用省略号或截断否则程序无法读取。- main.py 必须包含所有导入语句、类定义、方法实现的完整代码。- 如果代码过长，可以适当精简注释，但核心逻辑必须完整。【导入规范】- 加密相关请使用 `from Crypto.Cipher import AES`（依赖 pycryptodome），或标准库 `hashlib`。- 二维码生成使用 `qrcode`，图像处理使用 `PIL`（Pillow）。- 所有第三方库均会被自动检测安装，无需手动处理。现在请生成转换后的插件代码。"
+}

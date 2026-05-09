@@ -1,0 +1,8 @@
+【工具列表】
+
+1. execute_skill(skill_name, action="run_script", params=None) - 执行指定的技能。skill_name 为技能文件夹名；action 可选 "run_script"（运行脚本）或 "get_info"（获取技能说明）；params 为参数，例如运行脚本时需提供 {"script": "文件名", "args": ["参数列表"]}。
+
+【注意事项】
+- 技能存放在 skills 目录下，每个技能为一个文件夹，包含 SKILL.md 和 scripts 子目录。
+- 运行脚本时，脚本可以是 Python、Shell、JavaScript 等，由文件扩展名决定。
+- 执行脚本可能产生副作用，请确保技能来源可信。

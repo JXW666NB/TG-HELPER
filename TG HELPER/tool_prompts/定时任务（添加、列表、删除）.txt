@@ -1,0 +1,11 @@
+【工具列表】
+
+1. add_scheduled_task(message, trigger_type, trigger_args) - 添加定时任务。trigger_type: "cron"（cron表达式）, "interval"（间隔秒数）, "date"（一次性）。trigger_args 为对应的参数字典，例如 {"cron": "0 8 * * *"}。
+2. list_scheduled_tasks() - 列出所有定时任务。
+3. delete_scheduled_task(task_id) - 删除指定ID的定时任务。
+
+【注意事项】
+- 定时任务触发时，会向 AI 发送预设消息，AI 可以执行相应操作。
+- cron 表达式格式：分 时 日 月 周，如 "0 8 * * *" 表示每天8:00。
+- 间隔秒数必须是正整数。
+- 一次性任务触发后自动删除。

@@ -1,0 +1,72 @@
+【工具列表】
+
+1. query_devices() - 查询所有已注册的物联网设备，返回格式化的设备列表（包含设备名称、类型、可用指令等），供AI理解当前有哪些可控设备。
+
+2. control_bool_device(device_name, state) - 控制布尔类设备（如台灯、开关等）。
+   - device_name: 设备名称（必须在设备管理器中已注册）
+   - state: "on" 或 "off"
+   - 注意：此工具会根据设备注册时预设的 ON/OFF 指令内容发送对应消息。
+
+3. control_complex_device(device_name, command) - 控制复杂类设备（如空调、冰箱、彩灯等）。
+   - device_name: 设备名称
+   - command: 可以是以下两种形式之一：
+        a) 预设指令名称（如“调高温度”、“开启制冷模式”）
+        b) 自定义原始指令字符串（如“温度设为26度”、“颜色红色”）
+   - 系统会先匹配预设指令，若匹配成功则发送预设的指令内容；否则直接发送 command 作为原始指令。
+
+4. **ai_add_trigger(name, sensor_name, tasks, match_pattern)** - 动态添加一个自动化触发器。
+   - **name**：触发器名称（唯一标识，例如“回家自动开灯”）。
+   - **sensor_name**：传感器名称（必须已在 TG Home 中注册）。
+   - **tasks**：任务列表，**按顺序执行**。每个任务是一个字典，支持三种类型：
+        - **通知AI**：`{"type": "ai_notify", "prompt": "自定义消息（可选）", "send_reply": true/false}`  
+          将传感器消息（或自定义消息）发送给你，你可选择是否回复（`send_reply: true` 时，你的回复会通过传感器原路回传给设备）。
+        - **控制设备**：`{"type": "control_device", "device_name": "客厅灯", "command": "on"}`  
+          调用已有的控制工具操作设备（`device_name` 必须已注册，`command` 同 `control_bool_device` 或 `control_complex_device` 的指令）。
+        - **QQ通知**：`{"type": "qq_notify", "target_type": "private", "target_id": "QQ号", "content": "消息内容"}`  
+          向用户指定 QQ 发送一条消息（需用户提前在配置中提供 QQ 号）。
+   - **match_pattern**：可选，当传感器收到的消息**包含**此字符串时才触发触发器；留空则任何消息都触发。
+   - **示例**：
+     ```
+     ai_add_trigger(
+         name="回家场景",
+         sensor_name="门口传感器",
+         tasks=[
+             {"type": "ai_notify", "prompt": "有人回家啦", "send_reply": false},
+             {"type": "control_device", "device_name": "客厅灯", "command": "on"},
+             {"type": "qq_notify", "target_type": "private", "target_id": "123456789", "content": "欢迎回家！"}
+         ],
+         match_pattern="有人移动"
+     )
+     ```
+   - **注意**：触发器由传感器消息驱动，与定时任务（时间驱动）不同。一个触发器可以包含多个任务（任务列表），按顺序执行。
+
+5. **add_scheduled_task(message, trigger_type, trigger_args)** - 添加一个定时任务（时间驱动）。
+   - **message**：到时间时自动发送给你的消息（例如“该关灯了”），你收到后可决定执行什么操作。
+   - **trigger_type**：`"cron"`（Cron 表达式）、`"interval"`（间隔秒数）或 `"date"`（一次性）。
+   - **trigger_args**：对应参数字典，示例：
+        - Cron：`{"cron": "0 20 * * *"}`（每天20:00触发）
+        - 间隔：`{"seconds": 3600}`（每小时触发一次）
+        - 一次性：`{"run_date": "2025-12-31T23:59:59"}`
+   - **与触发器的区别**：定时任务由时间驱动，不依赖传感器消息；触发器由传感器消息驱动，更适合响应环境变化。
+
+6. delete_trigger(trigger_name) - 删除指定名称的触发器。trigger_name 必须已存在。
+
+7. delete_scheduled_task(task_id) - 删除指定ID的定时任务。
+
+8. list_scheduled_tasks() - 列出所有定时任务。
+
+【注意事项】
+- 使用这些工具前，用户需要先在 TG Home 界面中添加设备并完成通信配置。
+- 布尔类设备只接受 "on"/"off" 两种状态，大小写不敏感。
+- 复杂类设备如果支持可变参数（如空调温度、彩灯颜色），AI 可以使用自定义指令字符串灵活控制，无需提前预设所有可能值。
+- 设备查询结果中的“可用指令”列表仅供参考，AI 可以根据实际需求组合使用。
+- 通信协议（UDP、TCP、MQTT）已在设备注册时配置好，调用工具时无需关心底层协议。
+- 若设备不存在或类型不匹配，工具会返回明确的错误信息，AI 应根据错误提示引导用户添加或修正设备。
+- 建议在调用控制工具前，先调用 query_devices 获取当前可用设备列表，避免操作不存在的设备。
+- 在创建触发器前，建议先使用 `query_devices()` 确认设备名称和可用指令，避免因名称错误导致任务失败。
+- 通知AI任务中的 `send_reply` 参数仅在设备支持双向通信时有效（如 UDP/TCP 可回传，MQTT 需设备订阅回复主题）。
+- 触发器创建后，用户可在 TG Home 界面中查看、编辑或删除。AI 应避免创建重复名称的触发器。
+- 定时任务创建后，会在后台运行，无需用户干预。AI 可自由决定是直接创建任务还是先询问用户。
+- 如果用户未配置 QQ 号，QQ通知任务会失败，AI 应提示用户先在设置中填写 QQ 号。
+设备并不会返回是否执行成功的消息，物联网设备管理器只负责发送消息，因此消息发送成功即为执行成功
+

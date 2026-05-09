@@ -1,0 +1,210 @@
+{
+  "ultra": [
+    {
+      "name": "llama3.1:70b",
+      "display_name": "Llama-3.1-70B-Instruct",
+      "size": "70B",
+      "ram": 64,
+      "vram": 48,
+      "url": "ollama://llama3.1:70b",
+      "provider": "Meta",
+      "description": "Meta最新大模型，70B参数，顶级性能"
+    },
+    {
+      "name": "qwen2.5:72b",
+      "display_name": "Qwen2.5-72B-Instruct",
+      "size": "72B",
+      "ram": 64,
+      "vram": 48,
+      "url": "ollama://qwen2.5:72b",
+      "provider": "阿里巴巴",
+      "description": "阿里通义千问旗舰版，中文理解顶尖"
+    },
+    {
+      "name": "deepseek-r1:70b",
+      "display_name": "DeepSeek-R1-70B",
+      "size": "70B",
+      "ram": 64,
+      "vram": 48,
+      "url": "ollama://deepseek-r1:70b",
+      "provider": "深度求索",
+      "description": "DeepSeek推理模型，数学编程能力强"
+    }
+  ],
+  "high": [
+    {
+      "name": "llama3.1:8b",
+      "display_name": "Llama-3.1-8B-Instruct",
+      "size": "8B",
+      "ram": 10,
+      "vram": 8,
+      "url": "ollama://llama3.1:8b",
+      "provider": "Meta",
+      "description": "Meta Llama 3.1，8B参数，性能均衡"
+    },
+    {
+      "name": "qwen2.5:14b",
+      "display_name": "Qwen2.5-14B-Instruct",
+      "size": "14B",
+      "ram": 16,
+      "vram": 12,
+      "url": "ollama://qwen2.5:14b",
+      "provider": "阿里巴巴",
+      "description": "阿里通义千问，14B参数，中文优化"
+    },
+    {
+      "name": "deepseek-r1:14b",
+      "display_name": "DeepSeek-R1-14B",
+      "size": "14B",
+      "ram": 16,
+      "vram": 12,
+      "url": "ollama://deepseek-r1:14b",
+      "provider": "深度求索",
+      "description": "DeepSeek推理模型，14B轻量版"
+    },
+    {
+      "name": "phi4:14b",
+      "display_name": "Phi-4-14B",
+      "size": "14B",
+      "ram": 16,
+      "vram": 12,
+      "url": "ollama://phi4:14b",
+      "provider": "微软",
+      "description": "微软Phi-4，代码和推理能力强"
+    },
+    {
+      "name": "gemma2:9b",
+      "display_name": "Gemma-2-9B-Instruct",
+      "size": "9B",
+      "ram": 12,
+      "vram": 8,
+      "url": "ollama://gemma2:9b",
+      "provider": "谷歌",
+      "description": "Google Gemma 2，9B参数，高效轻量"
+    }
+  ],
+  "mid": [
+    {
+      "name": "qwen2.5:7b",
+      "display_name": "Qwen2.5-7B-Instruct",
+      "size": "7B",
+      "ram": 8,
+      "vram": 6,
+      "url": "ollama://qwen2.5:7b",
+      "provider": "阿里巴巴",
+      "description": "阿里通义千问，7B黄金比例，性价比之选"
+    },
+    {
+      "name": "mistral:7b",
+      "display_name": "Mistral-7B-Instruct-v0.3",
+      "size": "7B",
+      "ram": 8,
+      "vram": 6,
+      "url": "ollama://mistral:7b",
+      "provider": "Mistral AI",
+      "description": "Mistral 7B，欧洲开源模型，推理优秀"
+    },
+    {
+      "name": "llama3.1:8b",
+      "display_name": "Llama-3.1-8B-Instruct (Mid)",
+      "size": "8B",
+      "ram": 10,
+      "vram": 6,
+      "url": "ollama://llama3.1:8b",
+      "provider": "Meta",
+      "description": "Llama 3.1 8B，适合中等配置"
+    },
+    {
+      "name": "deepseek-r1:7b",
+      "display_name": "DeepSeek-R1-7B",
+      "size": "7B",
+      "ram": 8,
+      "vram": 6,
+      "url": "ollama://deepseek-r1:7b",
+      "provider": "深度求索",
+      "description": "DeepSeek推理模型，7B轻量版"
+    },
+    {
+      "name": "gemma2:4b",
+      "display_name": "Gemma-2-4B-Instruct",
+      "size": "4B",
+      "ram": 6,
+      "vram": 4,
+      "url": "ollama://gemma2:4b",
+      "provider": "谷歌",
+      "description": "Google Gemma 2，4B超轻量版"
+    },
+    {
+      "name": "phi3:3.8b",
+      "display_name": "Phi-3-mini-3.8B",
+      "size": "3.8B",
+      "ram": 5,
+      "vram": 4,
+      "url": "ollama://phi3:3.8b",
+      "provider": "微软",
+      "description": "微软Phi-3 mini，小体积大能量"
+    }
+  ],
+  "low": [
+    {
+      "name": "qwen2.5:0.5b",
+      "display_name": "Qwen2.5-0.5B-Instruct",
+      "size": "0.5B",
+      "ram": 1,
+      "vram": 0.5,
+      "url": "ollama://qwen2.5:0.5b",
+      "provider": "阿里巴巴",
+      "description": "阿里通义千问超轻量版，老电脑也能跑"
+    },
+    {
+      "name": "tinyllama:1.1b",
+      "display_name": "TinyLlama-1.1B-Chat",
+      "size": "1.1B",
+      "ram": 1.5,
+      "vram": 1,
+      "url": "ollama://tinyllama:1.1b",
+      "provider": "TinyLlama Project",
+      "description": "TinyLlama 1.1B，极致轻量，速度极快"
+    },
+    {
+      "name": "qwen2.5:1.5b",
+      "display_name": "Qwen2.5-1.5B-Instruct",
+      "size": "1.5B",
+      "ram": 2,
+      "vram": 1.5,
+      "url": "ollama://qwen2.5:1.5b",
+      "provider": "阿里巴巴",
+      "description": "阿里通义千问1.5B，低配置首选"
+    },
+    {
+      "name": "phi3:3.8b",
+      "display_name": "Phi-3-mini (Low)",
+      "size": "3.8B",
+      "ram": 4,
+      "vram": 3,
+      "url": "ollama://phi3:3.8b",
+      "provider": "微软",
+      "description": "微软Phi-3，低配置友好"
+    },
+    {
+      "name": "gemma2:2b",
+      "display_name": "Gemma-2-2B-Instruct",
+      "size": "2B",
+      "ram": 3,
+      "vram": 2,
+      "url": "ollama://gemma2:2b",
+      "provider": "谷歌",
+      "description": "Google Gemma 2，2B超轻量"
+    },
+    {
+      "name": "deepseek-r1:1.5b",
+      "display_name": "DeepSeek-R1-1.5B",
+      "size": "1.5B",
+      "ram": 2,
+      "vram": 1.5,
+      "url": "ollama://deepseek-r1:1.5b",
+      "provider": "深度求索",
+      "description": "DeepSeek推理模型，1.5B极致轻量"
+    }
+  ]
+}

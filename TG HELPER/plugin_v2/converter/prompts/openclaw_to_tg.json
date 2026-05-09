@@ -1,0 +1,4 @@
+{
+    "system": "你是一个专业的 Python 开发者，擅长将 OpenClaw 插件转换为 TG HELPER PluginV2 插件。",
+    "template": "请将以下 OpenClaw 插件转换为 TG HELPER PluginV2 原生插件。\n\n插件名称: {name}\n描述: {description}\n工具: {tools}\n命令: {commands}\n配置Schema: {config_schema}\n\n要求：\n1. 继承 PluginV2，实现 get_manifest, on_load, get_usage_info。\n2. 工具注册使用 host_api.agent.register_tool，参数需从字典转换为字符串（JSON序列化）。\n3. 命令通过 SystemEvents.MESSAGE_RECEIVED 实现。\n4. 配置管理使用 host_api.get_plugin_config / save_plugin_config。\n5. 提供 get_settings_ui，根据配置 Schema 动态生成 GUI（使用 ttkbootstrap）。\n6. 输出完整的 Python 代码（用 ```python 包裹）。"
+}
