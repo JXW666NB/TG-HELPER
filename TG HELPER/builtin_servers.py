@@ -10,9 +10,7 @@ import zipfile
 import urllib.request
 from datetime import datetime
 from typing import Dict, List, Optional
-import tkinter as tk
-from tkinter import ttk, messagebox
-import ttkbootstrap as tb
+
 import subprocess
 import ctypes
 # MQTT 客户端（用于内部订阅）
@@ -57,31 +55,11 @@ class MosquittoManager:
             print(msg)
 
     def _safe_log(self, msg):
-        """线程安全地记录日志（子线程调用时自动调度到主线程）"""
-        import threading
-        current_thread = threading.current_thread()
-        if current_thread is threading.main_thread():
-            self._log(msg)
-        else:
-            # 子线程中先打印到控制台
-            print(f"[后台] {msg}")
-            # 尝试调度到主线程（通过 tkinter 的 after 机制）
-            try:
-                if tk._default_root:
-                    tk._default_root.after(0, lambda: self._log(msg))
-            except:
-                pass
+        """线程安全地记录日志"""
+        self._log(msg)
 
     def _safe_after(self, delay_ms, callback):
-        """线程安全地延迟执行（只能在主线程调用，这里通过 tkinter）"""
-        try:
-            if tk._default_root:
-                tk._default_root.after(delay_ms, callback)
-                return True
-        except:
-            pass
-        
-        # 如果没有 tkinter root，使用 threading.Timer
+        """线程安全地延迟执行"""
         def wrapper():
             try:
                 callback()
@@ -219,26 +197,20 @@ class MosquittoManager:
                         last_log_time = current_time
 
     def _show_install_error(self, error_msg):
-        """在主线程显示安装错误对话框"""
+        """显示安装错误信息"""
+        print(f"\n❌ 安装失败: {error_msg}")
+        print(f"可能原因：")
+        print(f"1. 网络连接超时（官网在国外，建议翻墙或等待）")
+        print(f"2. 没有管理员权限（安装需要写入系统）")
+        print(f"3. 安装路径包含空格")
+        print(f"\n建议手动下载并安装到：{os.path.abspath(self.mosquitto_dir)}")
+        print(f"下载地址：https://mosquitto.org/download/")
         try:
-            root = tk.Tk()
-            root.withdraw()
-            answer = messagebox.askyesno(
-                "安装失败",
-                f"无法自动安装 Mosquitto:\n{error_msg}\n\n"
-                f"可能原因：\n"
-                f"1. 网络连接超时（官网在国外，建议翻墙或等待）\n"
-                f"2. 没有管理员权限（安装需要写入系统）\n"
-                f"3. 安装路径包含空格\n\n"
-                f"建议手动下载并安装到：\n{os.path.abspath(self.mosquitto_dir)}\n\n"
-                f"下载地址：https://mosquitto.org/download/\n\n"
-                f"是否重试？"
-            )
-            root.destroy()
-            if answer:
+            answer = input("是否重试？(y/n): ").strip().lower()
+            if answer in ('y', 'yes', '是'):
                 self.ensure_installed()
-        except Exception as e:
-            print(f"显示错误对话框失败: {e}")
+        except:
+            pass
 
     def start(self, port=1883, username="", password=""):
         """

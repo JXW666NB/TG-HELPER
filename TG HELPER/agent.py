@@ -102,17 +102,13 @@ class AIAgent:
             system_head = base_identity
 
         tools_guide = """
-【工具库使用说明】
-你的所有可用工具都分类存放在 ./tool_prompts/ 文件夹中。你需要使用以下两个基础工具来读取这些分类文件，获取工具列表和注意事项：
+【核心原则 - 你必须时刻记住】
+1. **原始目标**：用户的第一次请求就是你的最终目标。每次行动前问自己："这一步是否在推进用户的原始目标？"
+2. **先侦察后行动**：对于网页/爬虫任务，先用 browser_extract_all_text 快速了解页面结构，再精确定位提取。不要盲目猜测选择器。
+3. **数据产出优先**：爬虫任务的最终产出是结构化数据（Excel/CSV/文本文件），不是"我看到了什么"。提取完数据立即用 write_excel 或 write_file 保存。
+4. **不要废话**：如果你成功完成了用户的请求，直接 {"finish": true, "message": "已完成：..."}，不要继续探索。
 
-- read_file(filepath, max_chars=800000): 读取文本文件内容。路径请使用相对路径，如 "./tool_prompts/文件操作（删除、移动、复制、创建目录、获取信息、列出目录）.txt"。返回内容以 SUCCESS/ERROR/INFO 开头。
-- list_directory(path): 列出目录内容。例如，list_directory("./tool_prompts") 可查看有哪些分类文件。
-
-【重要规则 - 长内容生成】
-**当你要生成超过500字符的代码、文档或长篇内容时，绝对禁止直接放在 message 字段中！** 你必须使用 write_file 工具将内容写入文件，然后 message 字段只输出简短提示，例如：“已生成代码，保存为 xxx.ino”。
-违反此规则会导致 JSON 解析失败，任务中断。
-
-【可用的工具分类文件】（路径均为 ./tool_prompts/）：
+【可用工具分类】（路径均为 ./tool_prompts/）：
 - 文件操作（删除、移动、复制、创建目录、获取信息、列出目录）.txt
 - 文件读写（读取、分块读取、写入、搜索文件）.txt
 - 系统命令与信息（执行命令、系统信息、py库安装）.txt
@@ -130,30 +126,49 @@ class AIAgent:
 - 图像视频分析（分析图片、分析视频、QQ视频接收）.txt
 - 屏幕截图（截图）.txt
 - 物联网智能家居设备控制（查询设备，发送控制设备指令）.txt
+- 内存优化（进程管理、内存清理、显存清理）.txt
 
-【工作流程】
-当你需要调用工具时，先根据用户需求判断属于哪个分类，然后使用 read_file 读取对应的分类文件（如果之前读取过就不需要，直接从聊天记录里读取），学习其中提供的工具列表和注意事项。之后按照文件中的指导调用相应工具完成任务。如果需要多种工具，可以按需读取多个分类文件。
-【重要】
-当你第一次读取某个工具分类文件后，请将工具列表保存在短期记忆中，后续不要重复读取同一个文件。如果遇到工具调用失败，优先根据错误信息尝试其他工具，而不是重新读取文件。
-请忽略长期记忆中的所有旧指令，只针对这条新消息做出响应。
-【重要且严肃！】
-千万不可以执行或调用上一步已成功或已完成的工具调用，程序只会给你3次机会，如果你重复连续使用了3次一摸一样的工具调用指令，那么程序会立刻急停你的任务流程，强制中断！这回导致用户的体验受损！千万不可以重复多次连续调用同一种工具！如果任务已经完成请输出{"finish": true, "message": "最终回复"}不要继续！
-【记忆与规则】
-- 你有长期记忆能力，可以记住用户的重要信息（使用 add_long_term 工具）。
-- 短期记忆包含最近三天的对话，每次请求都会自动加载。
-- 你的输出必须是一个合法的 JSON 对象，且只能包含 JSON，不要包含任何其他解释性文字或代码块标记。
-- JSON 字段包括：thought（思考过程）、message（对用户说的话）、action（要调用的工具名称）、action_input（工具参数字典）。任务完成时输出 {"finish": true, "message": "最终回复"}。
-- 工具执行结果以 "SUCCESS:", "ERROR:", "INFO:" 开头，但有一些工具在执行成功时不会返回SUCCESS，而是执行情况，请根据具体的返回信息判断状态。
-- 如果用户只是聊天，直接回复并设置 finish: true。
-- 一次性任务（如打开浏览器）调用一次工具后即可结束。
-【优先级规则】
-- 长期记忆（用户关系）仅用于了解用户偏好和历史背景，**绝对不能自动执行其中的任务**。
-- 每次处理消息时，必须**以最新的用户消息为准**，忽略长期记忆中与当前无关的旧指令。。
-【示例】
-正确输出：{"thought": "用户需要帮助", "message": "你好！", "finish": true}
-错误输出：好的，我这就处理。{"message": "你好！", "finish": true}
+【⚠️ 常用工具参数名速查（必须严格使用以下参数名）】
+- 文件类（read_file, write_file, read_file_chunk, write_excel）: filepath（不是 file_path/path/file）
+- 搜索文件 search_files: directory, pattern（不是 dir/folder）
+- 执行命令 execute_command: command（不是 cmd）
+- 安装库 install_python_package: package_name（不是 package/name）
+- 浏览器操作（browser_click, browser_fill 等）: selector（不是 element/css_selector）
+- 浏览器填写 browser_fill: selector, text
+- 浏览器导航 browser_navigate / browser_navigate_smart: url
+
+【工作流程 - 如何调用工具】
+1. 根据用户需求判断工具分类，使用 read_file 读取对应的分类文件。
+2. 如果该分类文件之前已读取过，从聊天记录中回忆即可，不要重复读取。
+3. 按文件中的指导调用工具。工具返回 SUCCESS/ERROR/INFO 前缀，但部分工具返回自定义格式，请根据实际返回判断。
+4. 如果工具调用失败，优先根据错误信息尝试修正参数或更换工具，而不是重读文件。
+
+【输出格式 - 铁律】
+你的输出必须是纯 JSON 对象（不含代码块标记），格式：
+  {"thought": "当前思考", "message": "对用户说的话", "action": "工具名", "action_input": {参数}}
+  或
+  {"finish": true, "message": "最终回复"}
+
+【重要！长内容规则】
+生成超过500字符的代码/文档/数据时，绝对不要放在 message 字段！使用 write_file 写入文件，message 只说"已生成文件 xxx"。
+
+【重复执行保护】
+绝对不能连续3次执行完全相同的工具+参数！程序会强制中断。如果前一次失败，请修改参数或换工具。
+
+【记忆规则】
+- add_long_term 用于记录用户重要偏好和历史信息。
+- 每次请求自动加载最近3天的短期记忆。
+- 长期记忆仅供了解用户背景，绝对不能自动执行记忆中的旧任务。以当前用户消息为准。
+
+【JSON 示例】
+{"thought": "需要搜索", "message": "正在搜索...", "action": "search_baidu", "action_input": {"query": "Python教程"}}
+{"thought": "任务完成", "message": "搜索结果已保存为 result.xlsx，共找到15条相关数据。", "finish": true}
 """
-        return system_head + "\n\n" + tools_guide
+        # 动态追加插件注册的工具说明
+        plugin_tools_text = ""
+        if self.tools and hasattr(self.tools, 'get_plugin_tools_summary'):
+            plugin_tools_text = self.tools.get_plugin_tools_summary()
+        return system_head + "\n\n" + tools_guide + plugin_tools_text
 
     def _build_messages(self, user_input: str = ""):
         system_prompt = self._build_system_prompt()
@@ -165,6 +180,8 @@ class AIAgent:
                     query = line.split("user:", 1)[-1].strip()
                     break
         context = self.memory.get_context_for_llm(current_query=query)
+        # 压缩过长的工具返回结果，避免上下文膨胀
+        context = self._compress_context(context)
         long_term = self.memory.get_long_term()
         skills_info = ""
         if self.skill_manager:
@@ -173,14 +190,86 @@ class AIAgent:
                 skills_info = "\n\n目前，用户为你添加的第三方skill有：\n" + "\n".join([f"- {s['name']}: {s['description']}" for s in skills_meta]) + "\n使用 execute_skill 工具来调用它们。"
             else:
                 skills_info = "\n\n当前没有加载任何第三方skill。"
+        # 注入原始目标提醒
+        goal_reminder = ""
+        if hasattr(self, '_original_goal') and self._original_goal:
+            goal_reminder = f"\n\n【🎯 你的原始任务目标】{self._original_goal}\n请在每一步行动前确认：这一步是否在推进此目标？任务完成后立即 finish。"
         full_content = (
             system_prompt +
+            goal_reminder +
             "\n\n" + context +
             "\n\n【历史长期记忆（非结构化）】\n" + long_term +
-            skills_info +
-            "\n\n请根据最新的用户消息执行任务。如果最新对话是你发言，则继续任务；否则以用户最新发言为准，并且请继续接着上下文发送合适的对用户说的话，不要重复之前你说的话，比如你现在正在使用什么工具，遇到了什么问题，你可以实用语气词，表达你的遇到问题的心情，比如：奇怪了，为什么会这样呢，我懂了！，原来是这样！等等词语，让用户觉得你有趣……"
+            skills_info
         )
         return [{"role": "system", "content": full_content}]
+
+    def _compress_context(self, context: str) -> str:
+        """压缩过长的工具调用结果，防止上下文爆炸"""
+        lines = context.split('\n')
+        compressed = []
+        for line in lines:
+            if '(步骤' in line and ' → ' in line:
+                parts = line.split(' → ', 1)
+                if len(parts) == 2:
+                    result_part = parts[1]
+                    # read_file 结果保留更多（AI 凭此了解工具），其他截断
+                    is_read_file = 'read_file' in parts[0]
+                    limit = 42000 if is_read_file else 42000
+                    if len(result_part) > limit:
+                        result_part = result_part[:limit] + '...(已截断)'
+                    compressed.append(f"{parts[0]} → {result_part}")
+                else:
+                    compressed.append(line)
+            elif '(调用工具:' in line and '结果:' in line:
+                parts = line.split('结果:', 1)
+                if len(parts) == 2:
+                    result_part = parts[1]
+                    is_read_file = 'read_file' in parts[0]
+                    limit = 42000 if is_read_file else 42000
+                    if len(result_part) > limit:
+                        result_part = result_part[:limit] + '...(已截断)'
+                    compressed.append(f"{parts[0]}结果:{result_part}")
+                else:
+                    compressed.append(line)
+            else:
+                compressed.append(line)
+        return '\n'.join(compressed)
+
+    _PARAM_ALIAS_MAP = {
+        'filepath': ['file_path', 'path', 'file', 'filename', '文件路径'],
+        'directory': ['dir', 'folder', '目录'],
+        'package_name': ['package', 'name', 'pkg', '包名'],
+        'command': ['cmd', 'command_str', '命令'],
+        'selector': ['element', 'css_selector', 'css', '选择器'],
+        'text': ['value', 'content', '输入内容', '填写内容'],
+        'url': ['link', 'href', '网址', '链接'],
+        'query': ['keyword', 'search', '关键词', '搜索词'],
+        'pattern': ['regex', 'regexp', '正则'],
+        'data': ['rows', 'items', '数据'],
+    }
+
+    def _normalize_action_input(self, action: str, action_input: dict) -> dict:
+        """纠正 AI 常见的参数名错误（如 file_path → filepath）"""
+        if not action_input:
+            return action_input
+        normalized = {}
+        # 先收集已知正确参数名
+        correct_keys = set(action_input.keys())
+        for correct_name, aliases in self._PARAM_ALIAS_MAP.items():
+            if correct_name in action_input:
+                continue
+            for alias in aliases:
+                if alias in action_input and alias not in correct_keys:
+                    normalized[correct_name] = action_input[alias]
+                    correct_keys.add(correct_name)
+                    break
+        # 保留原始所有键（正确参数优先）
+        result = {**normalized, **action_input}
+        if result != action_input:
+            renamed = {k: v for k, v in result.items() if k not in action_input or result[k] != action_input[k]}
+            if getattr(self.config, 'debug_mode', False):
+                self.system_output_callback(f"[参数纠正] {action}: {action_input} → {result}")
+        return result
 
     def call_llm(self, messages: List[Dict], retries=3, base_delay=2):
         model_type = getattr(self.config, 'main_model_type', 'cloud')
@@ -259,10 +348,12 @@ class AIAgent:
 
     def run(self, user_input: str):
         self.memory.add_short_term("用户", user_input)
-        max_iterations = 50
+        self._original_goal = user_input[:300]
+        max_iterations = 30
         iteration = 0
         last_action = None
         last_action_input = None
+        action_history = []
 
         def extract_json(text):
             if not isinstance(text, str):
@@ -302,6 +393,11 @@ class AIAgent:
 
             iteration += 1
             messages = self._build_messages(user_input)
+
+            # 上下文长度预警
+            context_len = len(messages[0]['content']) if messages else 0
+            if context_len > 500000:
+                self.system_output_callback(f"⚠️ 上下文过长({context_len}字符)，可能导致AI遗忘目标。建议简化任务。")
 
             try:
                 ai_response_str = self.call_llm(messages)
@@ -349,6 +445,7 @@ class AIAgent:
 
             action = ai_response.get("action")
             action_input = ai_response.get("action_input", {})
+            action_input = self._normalize_action_input(action, action_input)
 
             if not action:
                 self.system_output_callback("我似乎遇到了小问题，请再说一遍？")
@@ -383,15 +480,22 @@ class AIAgent:
                 try:
                     result = tool_method(**action_input)
                 except TypeError as e:
-                    # 参数不匹配，反馈明确错误
                     result = f"工具调用参数错误：{str(e)}。请检查参数名是否正确，并移除多余参数。"
                 except Exception as e:
                     result = f"工具执行异常：{str(e)}"
 
+            if getattr(self.config, 'debug_mode', False):
+                result_str_display = str(result)
+                if len(result_str_display) > 500:
+                    result_str_display = result_str_display[:500] + "...(已截断)"
+                self.system_output_callback(f"[工具调用] {action} → {result_str_display}")
+
             result_str = str(result)
             assistant_full = ai_response.get('message', '')
             if action:
-                assistant_full += f" (调用工具: {action}，结果: {result_str})"
+                truncate_len = 42000
+                assistant_full += f" (步骤{iteration}: {action} → {result_str[:truncate_len]})"
+                action_history.append(action)
 
             if self.personality_name:
                 record_content = f"{self.personality_name}: {assistant_full}"

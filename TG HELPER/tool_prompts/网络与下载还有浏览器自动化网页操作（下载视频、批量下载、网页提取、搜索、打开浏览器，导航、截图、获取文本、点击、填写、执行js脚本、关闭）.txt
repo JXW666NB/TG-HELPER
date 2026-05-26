@@ -125,6 +125,43 @@
 - 遇到自身能力不足时（例如无绘图功能），你可以主动使用浏览器去其他 AI 网站（豆包、文心一言等）完成任务，然后通过下载图片或截图的方式返回给用户。
 - 多步操作结束后，请调用 browser_close 关闭浏览器以释放资源。
 
+## 新增爬虫增强工具
+23. browser_get_page_html(max_chars=50000)
+   - 获取当前页面的完整 HTML 源码，适合 AI 分析页面结构和数据定位。
+   - 自动截断超长页面（默认50000字符），截断后提示使用 browser_evaluate 获取特定数据。
+
+24. browser_extract_all_text(max_chars=8000)
+   - 提取页面中所有可见文本（去除 script/style/iframe），快速了解页面内容。
+   - 适合在不确定数据位置时先"扫一眼"页面。
+
+25. browser_scroll_and_extract(selector, scroll_times=5, scroll_delay=1.5, max_items=50)
+   - 滚动页面并多次提取数据列表，自动去重。
+   - **爬电商、社交媒体、新闻列表的首选工具**。
+   - 每滚一次提取一次，直到达到 max_items 或 scroll_times。
+   - 返回每条数据的标题文本+链接+图片URL。
+
+26. browser_extract_table(selector="table", max_rows=100, output_file=None)
+   - 提取页面中 HTML 表格数据，自动识别表头。
+   - 可选保存为 CSV 文件（output_file 参数）。
+   - 适合金融数据、排名列表、统计表格等。
+
+27. browser_extract_json_from_script()
+   - 自动探测页面中 <script> 标签内的 JSON 数据块（如 Next.js __NEXT_DATA__、Nuxt.js __NUXT__）。
+   - 列出所有找到的 JSON 块及其顶层键名，方便后续用 browser_evaluate 精准提取。
+
+28. browser_navigate_smart(url, wait_until="networkidle", timeout=45000)
+   - 智能导航：超时自动降级为 domcontentloaded，网络错误给出具体排查建议。
+   - 比 browser_navigate 更宽容，适合不稳定网络环境。
+
+【爬虫最佳实践 - 务必遵守】
+1. 先浏览后提取：先用 browser_extract_all_text 或 browser_get_page_html 了解页面结构，再精确定位数据。
+2. 列表页用 browser_scroll_and_extract：电商/新闻/社交媒体的商品列表、文章列表。
+3. 表格数据用 browser_extract_table：金融、统计、排名。
+4. SPA/现代框架用 browser_extract_json_from_script：Next.js、Nuxt.js 等 SSR 框架的数据通常在 __NEXT_DATA__ 中。
+5. 遇到反爬：设置代理（browser_set_proxy）→ 随机 UA → 人类延时 → 分批请求。
+6. **结果产出**：提取到数据后，调用 write_excel 或 write_file 保存为结构化文件。
+7. **记住目标**：每步操作前想清楚"我在为用户完成什么任务"，不要在无关页面上浪费步骤。
+
 
 如果没有可用的代理。请你尝试使用 install_v2ray 工具，自动安装并配置一个能用的代理，然后继续抓取任务。如果安装失败，就放弃这条路。
 只许用 browser_set_proxy 设置浏览器代理，绝对不允许用 setup_system_proxy 修改我电脑或你程序的环境变量。你要保证你自己（AI 后端）的网络连通性不受影响。

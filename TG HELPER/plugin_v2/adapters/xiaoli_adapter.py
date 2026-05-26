@@ -84,10 +84,21 @@ class XiaoliAdapter(BaseAdapter):
         return None
     
     def create_plugin_instance(self, host_api):
-        metadata = self.load_metadata()
+        # load_metadata 已在 manager._load_adapter_plugin 中调用过，
+        # 这里直接使用缓存的元数据，避免重复加载模块
+        metadata = {
+            "id": self.plugin_id,
+            "name": self.plugin_name,
+            "version": "1.0.0",
+            "description": self._tool_info.get('description', ''),
+            "capabilities": ["agent.tool_register", "ui.display"],
+            "permissions": ["agent.tool_register", "ui.display"],
+            "entry_point": os.path.basename(self._plugin_file),
+            "keywords": self._tool_info.get('keywords', []),
+        }
         plugin_instance = self._plugin_instance
         tool_info = self._tool_info
-        
+
         class XiaoliRuntimePlugin(PluginV2):
             def get_manifest(self):
                 return PluginManifest(**metadata)

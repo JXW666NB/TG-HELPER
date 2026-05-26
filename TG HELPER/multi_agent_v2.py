@@ -133,12 +133,10 @@ class MultiAgentOrchestrator:
 3. **最终输出**必须是一个 JSON 对象，格式如下：
    {{
      "finish": true,
-     "message": "这是任务列表：["任务一", "任务二", "任务三"]"
+     "message": ["任务一", "任务二", "任务三"]
    }}
-   其中 message 里面包含一个完整的 JSON 数组，每个元素是一条简短的任务描述。
+   message 是一个 JSON 数组，每个元素是一条简短的任务描述。"""
 
-**【重要】不要输出纯数组，一定要包裹在 message 字段中。**
-"""
     # ==================== 公共接口 ====================
     def start(self, user_input: str):
         if self.is_running:
@@ -273,7 +271,15 @@ class MultiAgentOrchestrator:
                 return
             if self._is_replan_request(result):
                 self._say("worker", f"@Planner 任务 {task.index} 再次遇到问题：{result}")
-                break  # 退出，交给上层处理
+                new_tasks = self._replan_with_error(result)
+                if new_tasks:
+                    self._say("planner", f"任务已重新编排：{new_tasks}")
+                    self.task_list = new_tasks
+                    self._update_ui()
+                    return self._run_workflow_worker_loop()
+                else:
+                    self._say("planner", "重排失败，任务中止。")
+                    return
             task.status = "completed"
             task.result = result
             self._update_ui()
@@ -303,16 +309,29 @@ class MultiAgentOrchestrator:
         return False
 
     def _extract_task_list(self, text: str) -> List[str]:
-        # 1. 先尝试从文本中提取 JSON 数组（可能被引号包裹）
+        # 1. 尝试从文本中提取 JSON 对象，拿到 message 数组
+        match = re.search(r'\{.*\}', text, re.DOTALL)
+        if match:
+            try:
+                obj = json.loads(match.group())
+                if isinstance(obj, dict) and "message" in obj:
+                    msg = obj["message"]
+                    if isinstance(msg, list):
+                        return [str(item) for item in msg]
+                    if isinstance(msg, str):
+                        return [msg]
+            except (json.JSONDecodeError, Exception):
+                pass
+        # 2. 尝试直接提取 JSON 数组
         match = re.search(r'\[.*\]', text, re.DOTALL)
         if match:
             try:
                 arr = json.loads(match.group())
                 if isinstance(arr, list):
                     return [str(item) for item in arr]
-            except:
+            except (json.JSONDecodeError, Exception):
                 pass
-        # 2. 备用：按行分割并清理序号
+        # 3. 备用：按行分割并清理序号
         lines = [l.strip().lstrip("-*1234567890. ").rstrip(",") for l in text.splitlines() if l.strip()]
         if lines:
             return lines[:10]

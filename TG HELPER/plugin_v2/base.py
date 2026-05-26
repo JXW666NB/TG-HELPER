@@ -9,6 +9,8 @@ from typing import Dict, List, Optional, Any, Callable, Union
 from dataclasses import dataclass, field
 from enum import Enum
 
+from config import banben
+
 
 @dataclass
 class PluginManifest:
@@ -20,8 +22,8 @@ class PluginManifest:
     capabilities: List[str] = field(default_factory=list)
     permissions: List[str] = field(default_factory=list)
     dependencies: Dict[str, str] = field(default_factory=dict)
-    min_host_version: str = "2.0.0"
-    min_tg_helper_version: str = "2.0.0"
+    min_host_version: str = banben
+    min_tg_helper_version: str = banben
     config_schema: Dict[str, Any] = field(default_factory=dict)
     ui_hints: Dict[str, Any] = field(default_factory=dict)
     hooks: List[str] = field(default_factory=list)

@@ -202,61 +202,55 @@ class CapabilityManager:
         if plugin_id in self._plugin_permissions:
             self._plugin_permissions[plugin_id].discard(capability)
     
-    def check_permission(self, plugin_id: str, capability: str) -> bool:
-        """检查插件是否有某项权限"""
-        if capability in self._global_deny_list:
-            return False
-        if plugin_id not in self._plugin_permissions:
-            return False
-        return capability in self._plugin_permissions[plugin_id]
-    
-    def check_permissions(self, plugin_id: str, capabilities: List[str]) -> Dict[str, bool]:
-        """批量检查权限"""
-        return {cap: self.check_permission(plugin_id, cap) for cap in capabilities}
-    
-    def get_plugin_permissions(self, plugin_id: str) -> Set[str]:
-        """获取插件已授予的所有权限"""
-        return self._plugin_permissions.get(plugin_id, set()).copy()
-    
-    def get_capabilities(self) -> List[Capability]:
-        """获取所有已定义的能力"""
-        return list(self._capabilities.values())
-    
-    def deny_global(self, capability: str) -> None:
-        """全局禁用某项能力"""
-        self._global_deny_list.add(capability)
-    
-    def allow_global(self, capability: str) -> None:
-        """取消全局禁用"""
-        self._global_deny_list.discard(capability)
-    
-    def needs_confirmation(self, plugin_id: str, capability: str) -> bool:
-        """判断某个操作是否需要用户确认"""
-        cap = self.get_capability(capability)
-        if cap is None:
-            return True  # 未知能力默认需要确认
-        return cap.requires_confirmation
-    
-    def is_dangerous(self, capability: str) -> bool:
-        """判断是否是危险操作"""
-        cap = self.get_capability(capability)
-        if cap is None:
-            return True
-        return cap.dangerous
-
     # 别名映射表
     _capability_aliases = {
         "tools.register": "agent.tool_register",
         "config.read": "system.config",
         "config.write": "system.config",
-        "memory.write": "memory.write",  # 实际存在
+        "memory.write": "memory.write",
     }
 
     def check_permission(self, plugin_id: str, capability: str) -> bool:
-        # 先尝试别名映射
+        """检查插件是否有某项权限（支持别名映射）"""
         actual_cap = self._capability_aliases.get(capability, capability)
         if actual_cap in self._global_deny_list:
             return False
         if plugin_id not in self._plugin_permissions:
             return False
         return actual_cap in self._plugin_permissions[plugin_id]
+
+    def check_permissions(self, plugin_id: str, capabilities: List[str]) -> Dict[str, bool]:
+        """批量检查权限"""
+        return {cap: self.check_permission(plugin_id, cap) for cap in capabilities}
+
+    def get_plugin_permissions(self, plugin_id: str) -> Set[str]:
+        """获取插件已授予的所有权限"""
+        return self._plugin_permissions.get(plugin_id, set()).copy()
+
+    def get_capabilities(self) -> List[Capability]:
+        """获取所有已定义的能力"""
+        return list(self._capabilities.values())
+
+    def deny_global(self, capability: str) -> None:
+        """全局禁用某项能力"""
+        self._global_deny_list.add(capability)
+
+    def allow_global(self, capability: str) -> None:
+        """取消全局禁用"""
+        self._global_deny_list.discard(capability)
+
+    def needs_confirmation(self, plugin_id: str, capability: str) -> bool:
+        """判断某个操作是否需要用户确认"""
+        actual_cap = self._capability_aliases.get(capability, capability)
+        cap = self.get_capability(actual_cap)
+        if cap is None:
+            return True
+        return cap.requires_confirmation
+
+    def is_dangerous(self, capability: str) -> bool:
+        """判断是否是危险操作"""
+        actual_cap = self._capability_aliases.get(capability, capability)
+        cap = self.get_capability(actual_cap)
+        if cap is None:
+            return True
+        return cap.dangerous

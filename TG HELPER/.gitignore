@@ -1,0 +1,15 @@
+__pycache__/
+*.pyc
+*.pyo
+memory/
+screenshots/
+downloads/
+data/
+temp/
+iot_logs/
+mosquitto/
+device_configs/
+config/scheduled_tasks.json
+generate_midi.py
+*.log
+.DS_Store

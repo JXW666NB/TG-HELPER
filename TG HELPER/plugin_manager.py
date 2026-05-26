@@ -5,9 +5,6 @@ import importlib
 import threading
 import time
 import traceback
-import tkinter as tk
-from tkinter import messagebox, ttk
-
 try:
     from watchdog.observers import Observer
     from watchdog.events import FileSystemEventHandler

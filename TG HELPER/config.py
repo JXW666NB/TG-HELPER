@@ -8,14 +8,14 @@ class AgentConfig:
         self.ai_base_url = user_config.get("ai_base_url", "https://api.moonshot.cn/v1")
         self.ai_model = user_config.get("ai_model", "kimi-k2.5")
         self.multimodal_model = user_config.get("multimodal_model", self.ai_model)
-        self.max_tokens = user_config.get("max_tokens", 2000)
+        self.max_tokens = user_config.get("max_tokens", 8000)
         self.temperature = user_config.get("temperature", 1.0)
         # 多模态备用模型配置
         self.multimodal_enabled = user_config.get("multimodal_enabled", False)
         self.multimodal_api_key = user_config.get("multimodal_api_key", "")
         self.multimodal_base_url = user_config.get("multimodal_base_url", "")
         self.multimodal_model = user_config.get("multimodal_model", "")
-        self.multimodal_max_tokens = user_config.get("multimodal_max_tokens", 2000)
+        self.multimodal_max_tokens = user_config.get("multimodal_max_tokens", 8000)
         self.multimodal_temperature = user_config.get("multimodal_temperature", 1.0)
         # 可选配置
         self.email_smtp_server = user_config.get("email_smtp_server")
@@ -89,3 +89,6 @@ class AgentConfig:
         self.multi_agent_worker_persona = user_config.get("multi_agent_worker_persona", "艾依")
         self.multi_agent_reviewer_persona = user_config.get("multi_agent_reviewer_persona", "塔戈")
 config = AgentConfig()
+
+# 版本号统一管理
+banben = "V0.2.5"

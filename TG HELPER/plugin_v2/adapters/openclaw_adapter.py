@@ -1,13 +1,19 @@
 # -*- coding: utf-8 -*-
 """
-OpenClaw 插件适配器（完整版 - 修复布局问题）
+OpenClaw 插件适配器（PyQt6 版本）
 """
 import os
 import json
-import tkinter as tk
-from tkinter import ttk, scrolledtext
-import ttkbootstrap as tb
 from typing import Dict, Any, Optional, List, Callable
+
+from PyQt6.QtWidgets import (
+    QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
+    QLabel, QPushButton, QLineEdit, QCheckBox, QTextEdit, QFrame,
+    QDialog, QMessageBox
+)
+from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtGui import QFont
+
 from .base_adapter import BaseAdapter
 from ..base import PluginV2, HostAPI, PluginManifest
 from ..events import SystemEvents
@@ -71,8 +77,8 @@ class OpenClawAdapter(BaseAdapter):
         kind = self.metadata.get("kind", "")
         permissions = self.metadata.get("permissions", [])
         channels = self.metadata.get("channels", [])
-        return ("channel" in capabilities or 
-                kind == "channel" or 
+        return ("channel" in capabilities or
+                kind == "channel" or
                 "channel" in permissions or
                 len(channels) > 0)
 
@@ -135,9 +141,6 @@ class OpenClawAdapter(BaseAdapter):
                     host_api.events.subscribe(SystemEvents.MESSAGE_RECEIVED, on_message, plugin_id=metadata["id"])
 
             def get_settings_ui(self, parent):
-                main_frame = tb.Frame(parent, height=450)
-                main_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
-                main_frame.pack_propagate(False)  # 防止压缩
                 return adapter.generate_gui_config_panel(
                     parent,
                     host_api.get_plugin_config(),
@@ -157,6 +160,7 @@ class OpenClawAdapter(BaseAdapter):
                 self.status_label = None
                 self.console_text = None
                 self.command_entry = None
+                self._channel_window = None
 
             def get_manifest(self):
                 return PluginManifest(**metadata)
@@ -175,22 +179,24 @@ class OpenClawAdapter(BaseAdapter):
                 self.host_api = host_api
 
             def get_settings_ui(self, parent):
-                import tkinter as tk
-                from tkinter import scrolledtext
+                from PyQt6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QTextEdit, QLineEdit, QWidget
 
-                # 创建一个独立的顶级窗口用于调试
-                top = tk.Toplevel(parent)
-                top.title("通道控制台 ")
-                top.geometry("650x550")
+                top = QDialog(parent)
+                top.setWindowTitle("通道控制台")
+                top.resize(650, 550)
+                top.setModal(False)
+                self._channel_window = top
 
-                main_frame = tb.Frame(top)
-                main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+                main_layout = QVBoxLayout(top)
+                main_layout.setContentsMargins(10, 10, 10, 10)
 
-                self.status_label = tb.Label(main_frame, text="状态: 未启动", font=("微软雅黑", 12, "bold"))
-                self.status_label.pack(pady=5)
+                self.status_label = QLabel("状态: 未启动")
+                self.status_label.setFont(QFont("微软雅黑", 12, QFont.Weight.Bold))
+                main_layout.addWidget(self.status_label)
 
-                btn_frame = tb.Frame(main_frame)
-                btn_frame.pack(pady=5)
+                btn_frame = QWidget()
+                btn_layout = QHBoxLayout(btn_frame)
+                btn_layout.setContentsMargins(0, 0, 0, 0)
 
                 def start_channel():
                     config = self.host_api.get_plugin_config()
@@ -206,72 +212,101 @@ class OpenClawAdapter(BaseAdapter):
                         self.bridge.register_handler("channel.message", self._handle_channel_message)
                         self.bridge.register_handler("channel.event", self._handle_channel_event)
                     if self.bridge.start(config):
-                        self.status_label.config(text="状态: 运行中", bootstyle="success")
+                        self.status_label.setText("状态: 运行中")
+                        self.status_label.setStyleSheet("color: #27ae60; font-weight: bold; font-size: 12pt;")
                         self._append_console("通道已启动")
                     else:
-                        self.status_label.config(text="状态: 启动失败", bootstyle="danger")
+                        self.status_label.setText("状态: 启动失败")
+                        self.status_label.setStyleSheet("color: #e74c3c; font-weight: bold; font-size: 12pt;")
 
                 def stop_channel():
                     if self.bridge:
                         self.bridge.stop()
                         self.bridge = None
-                    self.status_label.config(text="状态: 已停止", bootstyle="secondary")
+                    self.status_label.setText("状态: 已停止")
+                    self.status_label.setStyleSheet("color: #7f8c8d; font-weight: bold; font-size: 12pt;")
                     self._append_console("通道已停止")
 
-                tb.Button(btn_frame, text="启动通道", command=start_channel, bootstyle="success").pack(side=tk.LEFT, padx=10)
-                tb.Button(btn_frame, text="停止通道", command=stop_channel, bootstyle="danger").pack(side=tk.LEFT, padx=10)
+                start_btn = QPushButton("启动通道")
+                start_btn.setStyleSheet("background-color: #27ae60; color: white; padding: 6px 12px;")
+                start_btn.clicked.connect(start_channel)
+                btn_layout.addWidget(start_btn)
 
-                console_frame = tb.Frame(main_frame)
-                console_frame.pack(fill=tk.BOTH, expand=True, pady=10)
+                stop_btn = QPushButton("停止通道")
+                stop_btn.setStyleSheet("background-color: #e74c3c; color: white; padding: 6px 12px;")
+                stop_btn.clicked.connect(stop_channel)
+                btn_layout.addWidget(stop_btn)
 
-                self.console_text = scrolledtext.ScrolledText(
-                    console_frame,
-                    wrap=tk.WORD,
-                    height=12,
-                    font=("Consolas", 9),
-                    bg="#1e1e1e",
-                    fg="#d4d4d4"
-                )
-                self.console_text.pack(fill=tk.BOTH, expand=True)
+                btn_layout.addStretch()
+                main_layout.addWidget(btn_frame)
 
-                input_frame = tb.Frame(main_frame)
-                input_frame.pack(fill=tk.X, pady=5)
+                self.console_text = QTextEdit()
+                self.console_text.setReadOnly(True)
+                self.console_text.setFont(QFont("Consolas", 9))
+                self.console_text.setStyleSheet("background-color: #1e1e1e; color: #d4d4d4;")
+                main_layout.addWidget(self.console_text)
 
-                tb.Label(input_frame, text="命令:").pack(side=tk.LEFT)
-                self.command_entry = tb.Entry(input_frame)
-                self.command_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
-                self.command_entry.bind("<Return>", self._send_command)
-                tb.Button(input_frame, text="发送", command=self._send_command, bootstyle="primary").pack(side=tk.LEFT)
+                input_frame = QWidget()
+                input_layout = QHBoxLayout(input_frame)
+                input_layout.setContentsMargins(0, 0, 0, 0)
+                input_layout.addWidget(QLabel("命令:"))
 
-                quick_frame = tb.Frame(main_frame)
-                quick_frame.pack(fill=tk.X, pady=5)
-                tb.Button(quick_frame, text="扫码登录", command=lambda: self._send_command_str("login"), bootstyle="info").pack(side=tk.LEFT, padx=2)
-                tb.Button(quick_frame, text="查看状态", command=lambda: self._send_command_str("status"), bootstyle="secondary").pack(side=tk.LEFT, padx=2)
-                tb.Button(quick_frame, text="登出", command=lambda: self._send_command_str("logout"), bootstyle="warning").pack(side=tk.LEFT, padx=2)
+                self.command_entry = QLineEdit()
+                self.command_entry.returnPressed.connect(self._send_command)
+                input_layout.addWidget(self.command_entry)
 
-                # 返回一个简单的标签，表示控制台已在独立窗口打开
-                return tb.Label(parent, text="✅ 通道控制台已在独立窗口中打开，请查看。", font=("微软雅黑", 10), bootstyle="success")
+                send_btn = QPushButton("发送")
+                send_btn.setStyleSheet("background-color: #2980b9; color: white; padding: 4px 10px;")
+                send_btn.clicked.connect(self._send_command)
+                input_layout.addWidget(send_btn)
+                main_layout.addWidget(input_frame)
+
+                quick_frame = QWidget()
+                quick_layout = QHBoxLayout(quick_frame)
+                quick_layout.setContentsMargins(0, 0, 0, 0)
+
+                login_btn = QPushButton("扫码登录")
+                login_btn.setStyleSheet("background-color: #3498db; color: white;")
+                login_btn.clicked.connect(lambda: self._send_command_str("login"))
+                quick_layout.addWidget(login_btn)
+
+                status_btn = QPushButton("查看状态")
+                status_btn.clicked.connect(lambda: self._send_command_str("status"))
+                quick_layout.addWidget(status_btn)
+
+                logout_btn = QPushButton("登出")
+                logout_btn.setStyleSheet("background-color: #f39c12; color: white;")
+                logout_btn.clicked.connect(lambda: self._send_command_str("logout"))
+                quick_layout.addWidget(logout_btn)
+
+                quick_layout.addStretch()
+                main_layout.addWidget(quick_frame)
+
+                top.show()
+
+                return QLabel("✅ 通道控制台已在独立窗口中打开，请查看。")
 
             def _append_console(self, text: str, tag: str = None):
                 if not self.console_text:
                     return
                 def _append():
-                    self.console_text.insert(tk.END, text + "\n", tag)
-                    self.console_text.see(tk.END)
-                self.console_text.after(0, _append)
+                    color_map = {"error": "#e74c3c", "success": "#27ae60", "info": "#3498db"}
+                    color = color_map.get(tag, "#d4d4d4") if tag else "#d4d4d4"
+                    self.console_text.append(f"<span style='color:{color};'>{text}</span>")
+                QTimer.singleShot(0, _append)
 
             def _clear_console(self):
                 if self.console_text:
-                    self.console_text.delete(1.0, tk.END)
+                    self.console_text.clear()
 
             def _send_command(self, event=None):
                 if not self.command_entry:
                     return
-                cmd = self.command_entry.get().strip()
+                cmd = self.command_entry.text().strip()
                 if not cmd:
                     return
                 self._send_command_str(cmd)
-                self.command_entry.delete(0, tk.END)
+                self.command_entry.clear()
 
             def _send_command_str(self, cmd: str):
                 self._append_console(f"> {cmd}", "info")
@@ -331,6 +366,9 @@ class OpenClawAdapter(BaseAdapter):
                 self._append_console(f"[事件] {event_type}: {params}", "info")
 
             def on_unload(self):
+                if self._channel_window:
+                    self._channel_window.close()
+                    self._channel_window = None
                 if self.bridge:
                     self.bridge.stop()
 
@@ -343,8 +381,10 @@ class OpenClawAdapter(BaseAdapter):
         if not properties:
             return None
 
-        frame = tb.Frame(parent)
-        frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        frame = QWidget()
+        grid = QGridLayout(frame)
+        grid.setContentsMargins(5, 5, 5, 5)
+        grid.setSpacing(6)
 
         row = 0
         entries = {}
@@ -358,55 +398,63 @@ class OpenClawAdapter(BaseAdapter):
 
             current_val = config.get(prop_name, default_val)
 
-            label = tb.Label(frame, text=label_text, font=("微软雅黑", 9))
-            label.grid(row=row, column=0, sticky=tk.W, pady=3, padx=5)
+            label = QLabel(label_text)
+            label.setFont(QFont("微软雅黑", 9))
+            grid.addWidget(label, row, 0)
 
             if prop_type == "boolean":
-                var = tk.BooleanVar(value=current_val)
-                widget = tb.Checkbutton(frame, variable=var, bootstyle="primary-round-toggle")
+                widget = QCheckBox()
+                widget.setChecked(bool(current_val))
             elif prop_type in ("integer", "number"):
-                var = tk.StringVar(value=str(current_val))
-                widget = tb.Entry(frame, textvariable=var, width=20)
+                widget = QLineEdit(str(current_val))
+                widget.setMaximumWidth(150)
             elif prop_type == "string":
                 is_password = hint.get("secret", False) or "password" in prop_name.lower()
-                var = tk.StringVar(value=current_val)
-                widget = tb.Entry(frame, textvariable=var, width=30, show="*" if is_password else "")
+                widget = QLineEdit(str(current_val))
+                widget.setMinimumWidth(250)
+                if is_password:
+                    widget.setEchoMode(QLineEdit.EchoMode.Password)
             elif prop_type == "array":
                 val_str = ",".join(current_val) if isinstance(current_val, list) else str(current_val)
-                var = tk.StringVar(value=val_str)
-                widget = tb.Entry(frame, textvariable=var, width=30)
+                widget = QLineEdit(val_str)
+                widget.setMinimumWidth(250)
             else:
-                var = tk.StringVar(value=str(current_val))
-                widget = tb.Entry(frame, textvariable=var, width=30)
+                widget = QLineEdit(str(current_val))
+                widget.setMinimumWidth(250)
 
-            widget.grid(row=row, column=1, sticky=tk.W, pady=3, padx=5)
-            entries[prop_name] = (var, prop_type)
+            grid.addWidget(widget, row, 1)
+            entries[prop_name] = (widget, prop_type)
             row += 1
 
         def on_save():
             new_config = {}
-            for prop_name, (var, prop_type) in entries.items():
-                val = var.get()
+            for prop_name, (widget, prop_type) in entries.items():
                 if prop_type == "boolean":
-                    new_config[prop_name] = val
+                    val = widget.isChecked()
                 elif prop_type == "integer":
-                    new_config[prop_name] = int(val) if val.isdigit() else 0
+                    text = widget.text()
+                    val = int(text) if text.strip().isdigit() else 0
                 elif prop_type == "number":
                     try:
-                        new_config[prop_name] = float(val)
+                        val = float(widget.text())
                     except:
-                        new_config[prop_name] = 0.0
+                        val = 0.0
                 elif prop_type == "array":
-                    new_config[prop_name] = [v.strip() for v in val.split(",") if v.strip()]
+                    val = [v.strip() for v in widget.text().split(",") if v.strip()]
                 else:
-                    new_config[prop_name] = val
+                    val = widget.text()
+                new_config[prop_name] = val
             save_callback(new_config)
-            from tkinter import messagebox
-            messagebox.showinfo("保存成功", "配置已保存")
+            QMessageBox.information(parent, "保存成功", "配置已保存")
 
-        btn_frame = tb.Frame(frame)
-        btn_frame.grid(row=row, column=0, columnspan=2, pady=10)
-        tb.Button(btn_frame, text="保存配置", command=on_save, bootstyle="success").pack()
+        save_btn = QPushButton("保存配置")
+        save_btn.setStyleSheet("background-color: #27ae60; color: white; padding: 6px 16px;")
+        save_btn.clicked.connect(on_save)
+
+        btn_layout = QHBoxLayout()
+        btn_layout.addStretch()
+        btn_layout.addWidget(save_btn)
+        grid.addLayout(btn_layout, row, 0, 1, 2)
 
         return frame
 

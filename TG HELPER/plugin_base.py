@@ -1,9 +1,6 @@
 # plugin_base.py
 import threading
 import queue
-import tkinter as tk
-from tkinter import ttk
-
 class BasePlugin:
     """插件基类，所有插件必须继承此类并实现相应方法"""
     def __init__(self, gui, tools, config):

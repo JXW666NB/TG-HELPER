@@ -49,7 +49,7 @@ class BaseAdapter(ABC):
     def generate_gui_config_panel(self, parent, config: Dict[str, Any], save_callback) -> Any:
         """
         根据外部插件的配置 schema 动态生成 GUI 配置面板。
-        返回 tkinter/ttkbootstrap Frame 对象。
+        返回 PyQt6 Widget 对象。
         默认实现返回 None，子类可重写。
         """
         return None

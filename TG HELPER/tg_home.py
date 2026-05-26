@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-TG Home - 物联网设备管理
+TG Home - 物联网设备管理 (PyQt6 现代 UI 版本)
 可独立运行，也可从主 GUI 中打开
 """
 import json
@@ -8,13 +8,25 @@ import os
 import sys
 import subprocess
 import threading
-import tkinter as tk
-from tkinter import ttk, messagebox
-from PIL import Image, ImageTk
-import ttkbootstrap as tb
-from ttkbootstrap.constants import *
-from tkinter import scrolledtext
 from datetime import datetime
+
+from PyQt6.QtWidgets import (
+    QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QPushButton,
+    QLabel, QLineEdit, QComboBox, QTabWidget, QCheckBox, QRadioButton,
+    QSpinBox, QScrollArea, QTextEdit, QTableWidget, QTableWidgetItem,
+    QListWidget, QListWidgetItem, QMenu, QSplitter, QDialog,
+    QMessageBox, QFileDialog, QFrame, QApplication, QMainWindow,
+    QAbstractItemView, QHeaderView, QSizePolicy, QStackedWidget,
+    QButtonGroup, QGraphicsDropShadowEffect, QProgressBar, QToolButton,
+    QGraphicsOpacityEffect
+)
+from PyQt6.QtCore import (
+    Qt, QTimer, pyqtSignal, QSize, QRect, QPropertyAnimation, QEasingCurve
+)
+from PyQt6.QtGui import (
+    QPixmap, QCursor, QFont, QColor, QPalette, QIcon, QAction, QPainter,
+    QPainterPath, QFontDatabase
+)
 
 # 确保必要的库已安装
 try:
@@ -34,55 +46,862 @@ try:
     CONFIG_AVAILABLE = True
 except ImportError:
     CONFIG_AVAILABLE = False
-    # 创建一个简单的配置对象用于独立运行
     class DummyConfig:
-        gui_theme = "flatly"
+        gui_theme = "dark"
         napcat_http_url = ""
         napcat_access_token = ""
         qq_enabled = False
         qq_bot_uin = ""
         qq_whitelist = ""
+        inspector_enabled = True
+        inspector_interval = 3600
     config = DummyConfig()
 
-class TGHomeApp:
-    def __init__(self, root, theme=None):
-        self.root = root
-        self.root.title("TG Home - 智能设备管理")
-        self.root.geometry("1100x750")
-        self.root.minsize(900, 600)
+
+# ────────────── 现代暗色主题 QSS ──────────────
+DARK_QSS = """
+QWidget {
+    background-color: #1a1a2e;
+    color: #e8e8e8;
+    font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
+    font-size: 13px;
+}
+QMainWindow {
+    background-color: #1a1a2e;
+}
+QTabWidget::pane {
+    border: none;
+    background-color: #1a1a2e;
+}
+QTabBar::tab {
+    background-color: transparent;
+    color: #8b8ba7;
+    padding: 10px 24px;
+    border: none;
+    border-bottom: 2px solid transparent;
+    margin-right: 8px;
+    font-weight: 500;
+}
+QTabBar::tab:selected {
+    color: #4a90d9;
+    border-bottom: 2px solid #4a90d9;
+}
+QTabBar::tab:hover:!selected {
+    color: #c0c0d0;
+}
+QLabel {
+    background: transparent;
+}
+QPushButton {
+    background-color: #16213e;
+    color: #e8e8e8;
+    border: 1px solid #2a3a5e;
+    border-radius: 10px;
+    padding: 8px 18px;
+    min-height: 32px;
+    font-weight: 500;
+}
+QPushButton:hover {
+    background-color: #1e2f52;
+    border-color: #3a4a6e;
+}
+QPushButton:pressed {
+    background-color: #0f3460;
+}
+QPushButton[cssClass="success"] {
+    background-color: #27ae60;
+    border-color: #27ae60;
+    color: #fff;
+}
+QPushButton[cssClass="success"]:hover {
+    background-color: #2ecc71;
+    border-color: #2ecc71;
+}
+QPushButton[cssClass="danger"] {
+    background-color: #e74c3c;
+    border-color: #e74c3c;
+    color: #fff;
+}
+QPushButton[cssClass="danger"]:hover {
+    background-color: #ff6b6b;
+    border-color: #ff6b6b;
+}
+QPushButton[cssClass="primary"] {
+    background-color: #4a90d9;
+    border-color: #4a90d9;
+    color: #fff;
+}
+QPushButton[cssClass="primary"]:hover {
+    background-color: #5aa0e9;
+    border-color: #5aa0e9;
+}
+QPushButton[cssClass="warning"] {
+    background-color: #f39c12;
+    border-color: #f39c12;
+    color: #fff;
+}
+QPushButton[cssClass="warning"]:hover {
+    background-color: #f1c40f;
+    border-color: #f1c40f;
+}
+QPushButton[cssClass="success-outline"] {
+    background-color: transparent;
+    border: 1px solid #27ae60;
+    color: #27ae60;
+}
+QPushButton[cssClass="success-outline"]:hover {
+    background-color: #27ae60;
+    color: #fff;
+}
+QPushButton[cssClass="info-outline"] {
+    background-color: transparent;
+    border: 1px solid #4a90d9;
+    color: #4a90d9;
+}
+QPushButton[cssClass="info-outline"]:hover {
+    background-color: #4a90d9;
+    color: #fff;
+}
+QPushButton[cssClass="warning-outline"] {
+    background-color: transparent;
+    border: 1px solid #f39c12;
+    color: #f39c12;
+}
+QPushButton[cssClass="warning-outline"]:hover {
+    background-color: #f39c12;
+    color: #fff;
+}
+QPushButton[cssClass="secondary-outline"] {
+    background-color: transparent;
+    border: 1px solid #5a5a7a;
+    color: #8b8ba7;
+}
+QPushButton[cssClass="secondary-outline"]:hover {
+    background-color: #5a5a7a;
+    color: #fff;
+}
+QPushButton[cssClass="primary-outline"] {
+    background-color: transparent;
+    border: 1px solid #4a90d9;
+    color: #4a90d9;
+}
+QPushButton[cssClass="primary-outline"]:hover {
+    background-color: #4a90d9;
+    color: #fff;
+}
+QPushButton[cssClass="danger-outline"] {
+    background-color: transparent;
+    border: 1px solid #e74c3c;
+    color: #e74c3c;
+}
+QPushButton[cssClass="danger-outline"]:hover {
+    background-color: #e74c3c;
+    color: #fff;
+}
+QPushButton:disabled {
+    background-color: #2a2a3e;
+    color: #555;
+    border-color: #333;
+}
+QLineEdit, QComboBox, QSpinBox {
+    background-color: #16213e;
+    color: #e8e8e8;
+    border: 1px solid #2a3a5e;
+    border-radius: 8px;
+    padding: 6px 12px;
+    min-height: 28px;
+}
+QComboBox::drop-down {
+    border: none;
+    background-color: #0f3460;
+    width: 28px;
+    border-top-right-radius: 8px;
+    border-bottom-right-radius: 8px;
+}
+QComboBox QAbstractItemView {
+    background-color: #16213e;
+    color: #e8e8e8;
+    selection-background-color: #4a90d9;
+    outline: none;
+    border: 1px solid #2a3a5e;
+    border-radius: 8px;
+}
+QTextEdit {
+    background-color: #16213e;
+    color: #e8e8e8;
+    border: 1px solid #2a3a5e;
+    border-radius: 8px;
+    padding: 6px;
+}
+QTableWidget {
+    background-color: #16213e;
+    color: #e8e8e8;
+    border: 1px solid #2a3a5e;
+    gridline-color: #2a3a5e;
+    alternate-background-color: #1a1a2e;
+    border-radius: 12px;
+}
+QTableWidget::item {
+    padding: 8px;
+    border-bottom: 1px solid #2a3a5e;
+}
+QHeaderView::section {
+    background-color: #0f3460;
+    color: #e8e8e8;
+    padding: 8px 12px;
+    border: none;
+    border-bottom: 2px solid #4a90d9;
+    font-weight: 600;
+}
+QListWidget {
+    background-color: #16213e;
+    color: #e8e8e8;
+    border: 1px solid #2a3a5e;
+    border-radius: 8px;
+    padding: 4px;
+}
+QListWidget::item {
+    padding: 6px;
+    border-radius: 6px;
+    margin: 2px 0px;
+}
+QListWidget::item:selected {
+    background-color: #4a90d9;
+    color: #fff;
+}
+QListWidget::item:hover {
+    background-color: #1e2f52;
+}
+QScrollArea {
+    border: none;
+}
+QScrollBar:vertical {
+    background-color: #1a1a2e;
+    width: 8px;
+    border: none;
+    border-radius: 4px;
+}
+QScrollBar::handle:vertical {
+    background-color: #3a3a5e;
+    min-height: 40px;
+    border-radius: 4px;
+}
+QScrollBar::handle:vertical:hover {
+    background-color: #4a4a7e;
+}
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+    height: 0;
+}
+QScrollBar:horizontal {
+    background-color: #1a1a2e;
+    height: 8px;
+    border: none;
+    border-radius: 4px;
+}
+QScrollBar::handle:horizontal {
+    background-color: #3a3a5e;
+    min-width: 40px;
+    border-radius: 4px;
+}
+QScrollBar::handle:horizontal:hover {
+    background-color: #4a4a7e;
+}
+QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
+    width: 0;
+}
+QCheckBox, QRadioButton {
+    background-color: transparent;
+    color: #e8e8e8;
+    spacing: 10px;
+}
+QCheckBox::indicator {
+    width: 20px;
+    height: 20px;
+    border: 2px solid #4a90d9;
+    border-radius: 6px;
+    background-color: #16213e;
+}
+QCheckBox::indicator:checked {
+    background-color: #4a90d9;
+    border-color: #4a90d9;
+}
+QRadioButton::indicator {
+    width: 18px;
+    height: 18px;
+    border: 2px solid #4a90d9;
+    border-radius: 9px;
+    background-color: #16213e;
+}
+QRadioButton::indicator:checked {
+    background-color: #4a90d9;
+    border-color: #4a90d9;
+}
+QSplitter::handle {
+    background-color: #2a3a5e;
+    width: 4px;
+    height: 4px;
+    border-radius: 2px;
+}
+QSpinBox::up-button, QSpinBox::down-button {
+    background-color: #0f3460;
+    border: none;
+    width: 20px;
+    border-radius: 4px;
+}
+QFrame[cssClass="card"] {
+    border: 1px solid #2a3a5e;
+    border-radius: 12px;
+    background-color: #16213e;
+}
+QFrame[cssClass="group-frame"] {
+    border: 1px solid #2a3a5e;
+    border-radius: 12px;
+    background-color: #16213e;
+    padding: 8px;
+}
+QFrame[cssClass="stat-card"] {
+    border: 1px solid #2a3a5e;
+    border-radius: 16px;
+    background-color: #16213e;
+}
+QFrame[cssClass="sidebar"] {
+    border: none;
+    border-right: 1px solid #2a3a5e;
+    background-color: #16213e;
+}
+QFrame[cssClass="toolbar"] {
+    border: none;
+    border-bottom: 1px solid #2a3a5e;
+    background-color: #16213e;
+}
+QFrame[cssClass="glass-panel"] {
+    border: 1px solid #2a3a5e;
+    border-radius: 16px;
+    background-color: rgba(22, 33, 62, 180);
+}
+QProgressBar {
+    border: 1px solid #2a3a5e;
+    border-radius: 8px;
+    background-color: #16213e;
+    text-align: center;
+    font-weight: 500;
+}
+QProgressBar::chunk {
+    background-color: #4a90d9;
+    border-radius: 8px;
+}
+QToolButton {
+    background-color: transparent;
+    border: none;
+    border-radius: 10px;
+    padding: 8px;
+    color: #8b8ba7;
+    font-weight: 500;
+}
+QToolButton:hover {
+    background-color: #1e2f52;
+    color: #e8e8e8;
+}
+QToolButton:pressed {
+    background-color: #0f3460;
+}
+QDialog {
+    background-color: #1a1a2e;
+}
+"""
+
+LIGHT_QSS = """
+QWidget {
+    background-color: #f0f2f5;
+    color: #2c3e50;
+    font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
+    font-size: 13px;
+}
+QMainWindow {
+    background-color: #f0f2f5;
+}
+QTabWidget::pane {
+    border: none;
+    background-color: #f0f2f5;
+}
+QTabBar::tab {
+    background-color: transparent;
+    color: #7f8c8d;
+    padding: 10px 24px;
+    border: none;
+    border-bottom: 2px solid transparent;
+    margin-right: 8px;
+    font-weight: 500;
+}
+QTabBar::tab:selected {
+    color: #4a90d9;
+    border-bottom: 2px solid #4a90d9;
+}
+QTabBar::tab:hover:!selected {
+    color: #5a6a7a;
+}
+QLabel {
+    background: transparent;
+}
+QPushButton {
+    background-color: #ffffff;
+    color: #2c3e50;
+    border: 1px solid #ddd;
+    border-radius: 10px;
+    padding: 8px 18px;
+    min-height: 32px;
+    font-weight: 500;
+}
+QPushButton:hover {
+    background-color: #f5f5f5;
+    border-color: #ccc;
+}
+QPushButton:pressed {
+    background-color: #e8e8e8;
+}
+QPushButton[cssClass="success"] {
+    background-color: #27ae60;
+    border-color: #27ae60;
+    color: #fff;
+}
+QPushButton[cssClass="success"]:hover {
+    background-color: #2ecc71;
+    border-color: #2ecc71;
+}
+QPushButton[cssClass="danger"] {
+    background-color: #e74c3c;
+    border-color: #e74c3c;
+    color: #fff;
+}
+QPushButton[cssClass="danger"]:hover {
+    background-color: #ff6b6b;
+    border-color: #ff6b6b;
+}
+QPushButton[cssClass="primary"] {
+    background-color: #4a90d9;
+    border-color: #4a90d9;
+    color: #fff;
+}
+QPushButton[cssClass="primary"]:hover {
+    background-color: #5aa0e9;
+    border-color: #5aa0e9;
+}
+QPushButton[cssClass="warning"] {
+    background-color: #f39c12;
+    border-color: #f39c12;
+    color: #fff;
+}
+QPushButton[cssClass="warning"]:hover {
+    background-color: #f1c40f;
+    border-color: #f1c40f;
+}
+QPushButton[cssClass="success-outline"] {
+    background-color: transparent;
+    border: 1px solid #27ae60;
+    color: #27ae60;
+}
+QPushButton[cssClass="success-outline"]:hover {
+    background-color: #27ae60;
+    color: #fff;
+}
+QPushButton[cssClass="info-outline"] {
+    background-color: transparent;
+    border: 1px solid #4a90d9;
+    color: #4a90d9;
+}
+QPushButton[cssClass="info-outline"]:hover {
+    background-color: #4a90d9;
+    color: #fff;
+}
+QPushButton[cssClass="warning-outline"] {
+    background-color: transparent;
+    border: 1px solid #f39c12;
+    color: #f39c12;
+}
+QPushButton[cssClass="warning-outline"]:hover {
+    background-color: #f39c12;
+    color: #fff;
+}
+QPushButton[cssClass="secondary-outline"] {
+    background-color: transparent;
+    border: 1px solid #95a5a6;
+    color: #7f8c8d;
+}
+QPushButton[cssClass="secondary-outline"]:hover {
+    background-color: #95a5a6;
+    color: #fff;
+}
+QPushButton[cssClass="primary-outline"] {
+    background-color: transparent;
+    border: 1px solid #4a90d9;
+    color: #4a90d9;
+}
+QPushButton[cssClass="primary-outline"]:hover {
+    background-color: #4a90d9;
+    color: #fff;
+}
+QPushButton[cssClass="danger-outline"] {
+    background-color: transparent;
+    border: 1px solid #e74c3c;
+    color: #e74c3c;
+}
+QPushButton[cssClass="danger-outline"]:hover {
+    background-color: #e74c3c;
+    color: #fff;
+}
+QPushButton:disabled {
+    background-color: #eee;
+    color: #aaa;
+    border-color: #ddd;
+}
+QLineEdit, QComboBox, QSpinBox {
+    background-color: #ffffff;
+    color: #2c3e50;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 6px 12px;
+    min-height: 28px;
+}
+QComboBox::drop-down {
+    border: none;
+    background-color: #e8e8e8;
+    width: 28px;
+    border-top-right-radius: 8px;
+    border-bottom-right-radius: 8px;
+}
+QComboBox QAbstractItemView {
+    background-color: #ffffff;
+    color: #2c3e50;
+    selection-background-color: #4a90d9;
+    outline: none;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+}
+QTextEdit {
+    background-color: #ffffff;
+    color: #2c3e50;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 6px;
+}
+QTableWidget {
+    background-color: #ffffff;
+    color: #2c3e50;
+    border: 1px solid #ddd;
+    gridline-color: #eee;
+    alternate-background-color: #f9f9f9;
+    border-radius: 12px;
+}
+QTableWidget::item {
+    padding: 8px;
+    border-bottom: 1px solid #eee;
+}
+QHeaderView::section {
+    background-color: #f0f0f0;
+    color: #2c3e50;
+    padding: 8px 12px;
+    border: none;
+    border-bottom: 2px solid #4a90d9;
+    font-weight: 600;
+}
+QListWidget {
+    background-color: #ffffff;
+    color: #2c3e50;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 4px;
+}
+QListWidget::item {
+    padding: 6px;
+    border-radius: 6px;
+    margin: 2px 0px;
+}
+QListWidget::item:selected {
+    background-color: #4a90d9;
+    color: #fff;
+}
+QListWidget::item:hover {
+    background-color: #f0f0f0;
+}
+QScrollArea {
+    border: none;
+}
+QCheckBox, QRadioButton {
+    background-color: transparent;
+    color: #2c3e50;
+    spacing: 10px;
+}
+QSplitter::handle {
+    background-color: #ccc;
+    width: 4px;
+    height: 4px;
+    border-radius: 2px;
+}
+QFrame[cssClass="card"] {
+    border: 1px solid #ddd;
+    border-radius: 12px;
+    background-color: #ffffff;
+}
+QFrame[cssClass="group-frame"] {
+    border: 1px solid #ddd;
+    border-radius: 12px;
+    background-color: #ffffff;
+    padding: 8px;
+}
+QFrame[cssClass="stat-card"] {
+    border: 1px solid #ddd;
+    border-radius: 16px;
+    background-color: #ffffff;
+}
+QFrame[cssClass="sidebar"] {
+    border: none;
+    border-right: 1px solid #ddd;
+    background-color: #ffffff;
+}
+QFrame[cssClass="toolbar"] {
+    border: none;
+    border-bottom: 1px solid #ddd;
+    background-color: #ffffff;
+}
+QFrame[cssClass="glass-panel"] {
+    border: 1px solid #ddd;
+    border-radius: 16px;
+    background-color: rgba(255, 255, 255, 220);
+}
+QProgressBar {
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    background-color: #ffffff;
+    text-align: center;
+    font-weight: 500;
+}
+QProgressBar::chunk {
+    background-color: #4a90d9;
+    border-radius: 8px;
+}
+QToolButton {
+    background-color: transparent;
+    border: none;
+    border-radius: 10px;
+    padding: 8px;
+    color: #7f8c8d;
+    font-weight: 500;
+}
+QToolButton:hover {
+    background-color: #f0f0f0;
+    color: #2c3e50;
+}
+QToolButton:pressed {
+    background-color: #e0e0e0;
+}
+QDialog {
+    background-color: #f0f2f5;
+}
+"""
+
+
+def _make_btn(text, css_class, callback, parent=None):
+    """创建带 CSS class 属性的按钮"""
+    btn = QPushButton(text, parent)
+    btn.setProperty("cssClass", css_class)
+    btn.clicked.connect(callback)
+    btn.setStyleSheet("")  # 触发属性重绘
+    return btn
+
+
+def _make_tool_btn(icon_text, label, color, callback, parent=None):
+    """创建现代工具栏按钮（图标+文字垂直排列）"""
+    btn = QToolButton(parent)
+    btn.setText(label)
+    btn.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
+    btn.setFixedSize(72, 64)
+    btn.setStyleSheet(f"""
+        QToolButton {{
+            background-color: transparent;
+            border: none;
+            border-radius: 12px;
+            color: {color};
+            font-size: 11px;
+            font-weight: 500;
+            padding: 4px;
+        }}
+        QToolButton:hover {{
+            background-color: rgba(74, 144, 217, 30);
+            color: {color};
+        }}
+        QToolButton:pressed {{
+            background-color: rgba(74, 144, 217, 60);
+        }}
+    """)
+    # 使用 QLabel 风格绘制图标文字
+    btn.setProperty("icon_text", icon_text)
+    btn.clicked.connect(callback)
+    return btn
+
+
+class IconLabel(QLabel):
+    """可绘制简单几何图标的标签"""
+    def __init__(self, icon_type="device", size=64, parent=None):
+        super().__init__(parent)
+        self.icon_type = icon_type
+        self.setFixedSize(size, size)
+        self.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        rect = self.rect().adjusted(4, 4, -4, -4)
+
+        if self.icon_type == "device":
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QColor("#4a90d9"))
+            painter.drawRoundedRect(rect, 12, 12)
+            painter.setBrush(QColor("#ffffff"))
+            painter.drawRoundedRect(rect.adjusted(16, 20, -16, -20), 4, 4)
+            painter.drawEllipse(rect.center().x() - 6, rect.top() + 12, 12, 12)
+        elif self.icon_type == "sensor":
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QColor("#27ae60"))
+            painter.drawEllipse(rect.center(), rect.width() // 2 - 4, rect.height() // 2 - 4)
+            painter.setBrush(QColor("#ffffff"))
+            painter.drawEllipse(rect.center(), 8, 8)
+            painter.setPen(QColor("#27ae60"))
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.drawEllipse(rect.center(), rect.width() // 2 - 12, rect.height() // 2 - 12)
+        elif self.icon_type == "trigger":
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QColor("#f39c12"))
+            path = QPainterPath()
+            cx, cy = rect.center().x(), rect.center().y()
+            path.moveTo(cx, rect.top() + 8)
+            path.lineTo(cx + 16, cy + 8)
+            path.lineTo(cx + 6, cy + 8)
+            path.lineTo(cx + 10, rect.bottom() - 8)
+            path.lineTo(cx - 10, cy - 4)
+            path.lineTo(cx, cy - 4)
+            path.closeSubpath()
+            painter.drawPath(path)
+        else:
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QColor("#7f8c8d"))
+            painter.drawRoundedRect(rect, 12, 12)
+        painter.end()
+
+
+class StatusBadge(QLabel):
+    """彩色状态标签（药丸形状）"""
+    def __init__(self, text, color, parent=None):
+        super().__init__(text, parent)
+        self.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.setStyleSheet(f"""
+            background-color: {color}22;
+            color: {color};
+            border: 1px solid {color}44;
+            border-radius: 10px;
+            padding: 2px 10px;
+            font-size: 11px;
+            font-weight: 600;
+        """)
+        self.setFixedHeight(22)
+
+
+class ModernCard(QFrame):
+    """现代卡片组件，带悬停阴影动画"""
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setProperty("cssClass", "card")
+        self.setStyleSheet("")
+        self.setFixedWidth(280)
+        self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Minimum)
+        self.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+
+        self._shadow = QGraphicsDropShadowEffect(self)
+        self._shadow.setBlurRadius(16)
+        self._shadow.setColor(QColor(0, 0, 0, 40))
+        self._shadow.setOffset(0, 4)
+        self.setGraphicsEffect(self._shadow)
+
+    def enterEvent(self, event):
+        self._shadow.setBlurRadius(24)
+        self._shadow.setColor(QColor(0, 0, 0, 70))
+        self._shadow.setOffset(0, 8)
+        super().enterEvent(event)
+
+    def leaveEvent(self, event):
+        self._shadow.setBlurRadius(16)
+        self._shadow.setColor(QColor(0, 0, 0, 40))
+        self._shadow.setOffset(0, 4)
+        super().leaveEvent(event)
+
+
+class TGHomeApp(QWidget):
+    # 信号：线程安全 UI 更新
+    status_signal = pyqtSignal(str)
+    mqtt_log_signal = pyqtSignal(str)
+    topic_update_signal = pyqtSignal(str)
+    topic_msg_signal = pyqtSignal(str, str)
+    tcp_log_signal = pyqtSignal(str)
+    tcp_message_signal = pyqtSignal(str, str)
+
+    def __init__(self, root=None, theme=None):
+        super().__init__(root)
+
+        self.root_widget = root
+        if root is not None and hasattr(root, 'setWindowTitle'):
+            root.setWindowTitle("TG Home - 智能设备管理")
+            root.resize(1400, 900)
+            root.setMinimumSize(1000, 700)
 
         if theme is None:
             theme = self._load_theme_from_config()
         self.current_theme = theme
-        self.style = tb.Style(theme=theme)
-        self.style.theme_use()
 
         self.current_pages = {"devices": 0, "sensors": 0, "triggers": 0}
         self.cards_per_page = 25
 
-        self.main_frame = tb.Frame(root)
-        self.main_frame.pack(fill=BOTH, expand=True)
+        # 应用主题样式
+        self.apply_theme(theme)
+
+        # 连接信号
+        self.status_signal.connect(lambda txt: self.status_label.setText(txt))
+        self.mqtt_log_signal.connect(self._on_mqtt_log)
+        self.topic_update_signal.connect(self._on_topic_list_update)
+        self.topic_msg_signal.connect(self._on_topic_msg_update)
+        self.tcp_log_signal.connect(self._on_tcp_log)
+        self.tcp_message_signal.connect(self._on_tcp_message)
+
+        # 主布局
+        self.main_layout = QHBoxLayout(self)
+        self.main_layout.setContentsMargins(0, 0, 0, 0)
+        self.main_layout.setSpacing(0)
+
+        # 创建左侧边栏
+        self._create_sidebar()
+
+        # 内容区域
+        self.content_widget = QWidget()
+        self.content_layout = QVBoxLayout(self.content_widget)
+        self.content_layout.setContentsMargins(0, 0, 0, 0)
+        self.content_layout.setSpacing(0)
 
         self._create_toolbar()
         self._create_notebook()
         self._refresh_all()
         self._init_callbacks()
 
+        self.main_layout.addWidget(self.content_widget, 1)
+
         if not inspector._running:
             inspector.set_ai_callback(self._dummy_ai_callback)
             inspector.set_interval(3600)
             inspector.start()
 
-        self.current_pages = {"devices": 0, "sensors": 0, "triggers": 0}
-        self.cards_per_page = 25
-
-        self.main_frame = tb.Frame(root)
-        self.main_frame.pack(fill=BOTH, expand=True)
+        if root is not None and hasattr(root, 'setCentralWidget'):
+            root.setCentralWidget(self)
 
     def _load_theme_from_config(self):
-        """从配置文件读取主题，若不存在则返回默认值"""
         config_file = os.path.expanduser("~/.agent_config.json")
-        default_theme = "flatly"
+        default_theme = "dark"
         if os.path.exists(config_file):
             try:
                 with open(config_file, 'r', encoding='utf-8') as f:
@@ -93,8 +912,6 @@ class TGHomeApp:
         return default_theme
 
     def _init_callbacks(self):
-        """确保 iot_manager 的回调不为空，避免独立运行时出错"""
-        # 直接设置占位回调，覆盖可能为空的回调
         iot_manager.set_ai_callback(self._dummy_ai_callback)
         iot_manager.set_ai_trigger_callback(self._dummy_trigger_callback)
         iot_manager.set_qq_send_callback(self._dummy_qq_callback)
@@ -114,99 +931,393 @@ class TGHomeApp:
 
     def apply_theme(self, theme_name):
         self.current_theme = theme_name
-        self.style.theme_use(theme_name)
-        # 强制刷新所有数据面板
-        self._refresh_all()
-        # 如果是日志选项卡，也刷新表格
-        if hasattr(self, 'log_tree'):
+        if theme_name in ("dark", "darkly", "cyborg", "solar", "superhero"):
+            qss = DARK_QSS
+            self._is_dark = True
+        else:
+            qss = LIGHT_QSS
+            self._is_dark = False
+        self.setStyleSheet(qss)
+        if hasattr(self, 'status_label'):
+            self._refresh_all()
+        if hasattr(self, 'log_table'):
             self.refresh_log_table()
+
+    def _create_sidebar(self):
+        sidebar = QFrame()
+        sidebar.setProperty("cssClass", "sidebar")
+        sidebar.setStyleSheet("")
+        sidebar.setFixedWidth(200)
+        sidebar_layout = QVBoxLayout(sidebar)
+        sidebar_layout.setContentsMargins(12, 16, 12, 16)
+        sidebar_layout.setSpacing(6)
+
+        title = QLabel("🏠 TG Home")
+        title_font = QFont()
+        title_font.setBold(True)
+        title_font.setPointSize(16)
+        title.setFont(title_font)
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        sidebar_layout.addWidget(title)
+
+        subtitle = QLabel("智能设备管理")
+        subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        subtitle.setStyleSheet("color: #7f8c8d; font-size: 12px; margin-top: 4px;")
+        sidebar_layout.addWidget(subtitle)
+        sidebar_layout.addSpacing(24)
+
+        self.sidebar_buttons = {}
+        nav_items = [
+            ("dashboard", "📊 仪表盘", 0),
+            ("devices", "📱 设备", 1),
+            ("sensors", "📡 传感器", 2),
+            ("triggers", "⚡ 触发器", 3),
+            ("logs", "📋 日志", 4),
+            ("ai", "🧠 主动智能", 5),
+            ("servers", "🚀 服务器", 6),
+        ]
+
+        for key, text, idx in nav_items:
+            btn = QPushButton(text)
+            btn.setCheckable(True)
+            btn.setAutoExclusive(True)
+            btn.setProperty("cssClass", "secondary-outline")
+            btn.setStyleSheet("")
+            btn.setMinimumHeight(40)
+            btn.setStyleSheet("""
+                QPushButton {
+                    text-align: left;
+                    padding-left: 16px;
+                    border-radius: 10px;
+                    border: none;
+                    background-color: transparent;
+                    color: #8b8ba7;
+                    font-weight: 500;
+                }
+                QPushButton:checked {
+                    background-color: #4a90d922;
+                    color: #4a90d9;
+                    border-left: 3px solid #4a90d9;
+                }
+                QPushButton:hover:!checked {
+                    background-color: #2a2a4a;
+                    color: #c0c0d0;
+                }
+            """)
+            btn.clicked.connect(lambda checked, i=idx: self._switch_tab(i))
+            sidebar_layout.addWidget(btn)
+            self.sidebar_buttons[key] = btn
+
+        sidebar_layout.addStretch()
+
+        # 底部状态
+        status_frame = QFrame()
+        status_frame.setProperty("cssClass", "group-frame")
+        status_frame.setStyleSheet("")
+        status_layout = QHBoxLayout(status_frame)
+        status_layout.setContentsMargins(12, 8, 12, 8)
+        self.sys_status_dot = QLabel("●")
+        self.sys_status_dot.setStyleSheet("color: #27ae60; font-size: 16px;")
+        status_layout.addWidget(self.sys_status_dot)
+        self.sys_status_text = QLabel("系统在线")
+        self.sys_status_text.setStyleSheet("font-size: 12px; color: #7f8c8d; font-weight: 500;")
+        status_layout.addWidget(self.sys_status_text)
+        status_layout.addStretch()
+        sidebar_layout.addWidget(status_frame)
+
+        self.main_layout.addWidget(sidebar)
+        self.sidebar = sidebar
+
+    def _switch_tab(self, index):
+        self.notebook.setCurrentIndex(index)
+
     def _create_toolbar(self):
-        toolbar = tb.Frame(self.main_frame, bootstyle="secondary")
-        toolbar.pack(fill=X, padx=5, pady=5)
+        toolbar = QFrame()
+        toolbar.setProperty("cssClass", "toolbar")
+        toolbar.setStyleSheet("")
+        toolbar_layout = QHBoxLayout(toolbar)
+        toolbar_layout.setContentsMargins(16, 12, 16, 12)
+        toolbar_layout.setSpacing(12)
 
-        btn_group = tb.Frame(toolbar)
-        btn_group.pack(side=LEFT)
+        # 现代图标按钮组
+        btn_group = QWidget()
+        btn_group_layout = QHBoxLayout(btn_group)
+        btn_group_layout.setContentsMargins(0, 0, 0, 0)
+        btn_group_layout.setSpacing(8)
 
-        tb.Button(btn_group, text="➕ 添加设备", command=self.add_device_wizard,
-                  bootstyle="success-outline").pack(side=LEFT, padx=2)
-        tb.Button(btn_group, text="📡 添加传感器", command=self.add_sensor_wizard,
-                  bootstyle="info-outline").pack(side=LEFT, padx=2)
-        tb.Button(btn_group, text="⚡ 添加触发器", command=self.add_trigger_wizard,
-                  bootstyle="warning-outline").pack(side=LEFT, padx=2)
-        tb.Button(btn_group, text="🔄 刷新", command=self._refresh_all,
-                  bootstyle="secondary-outline").pack(side=LEFT, padx=2)
-        tb.Button(btn_group, text="📤 导出配置", command=self.export_config,
-                  bootstyle="secondary-outline").pack(side=LEFT, padx=2)
-        tb.Button(btn_group, text="📥 导入配置", command=self.import_config,
-                  bootstyle="secondary-outline").pack(side=LEFT, padx=2)
-        tb.Button(btn_group, text="🗑️ 重置配置", command=self.reset_config,
-                  bootstyle="danger-outline").pack(side=LEFT, padx=2)
-        self.status_label = tb.Label(toolbar, text="就绪", bootstyle="inverse-secondary")
-        self.status_label.pack(side=RIGHT, padx=5)
+        tool_buttons = [
+            ("➕", "添加设备", "#27ae60", self.add_device_wizard),
+            ("📡", "添加传感器", "#4a90d9", self.add_sensor_wizard),
+            ("⚡", "添加触发器", "#f39c12", self.add_trigger_wizard),
+            ("🔄", "刷新", "#8b8ba7", self._refresh_all),
+            ("📤", "导出", "#8b8ba7", self.export_config),
+            ("📥", "导入", "#8b8ba7", self.import_config),
+            ("🗑", "重置", "#e74c3c", self.reset_config),
+        ]
+
+        for icon, label, color, callback in tool_buttons:
+            btn = _make_tool_btn(icon, label, color, callback)
+            btn_group_layout.addWidget(btn)
+
+        toolbar_layout.addWidget(btn_group)
+        toolbar_layout.addStretch()
+
+        self.status_label = QLabel("就绪")
+        self.status_label.setStyleSheet("color: #7f8c8d; font-size: 12px; font-weight: 500;")
+        toolbar_layout.addWidget(self.status_label)
+
+        self.content_layout.addWidget(toolbar)
 
     def _create_notebook(self):
-        self.notebook = tb.Notebook(self.main_frame, bootstyle="secondary")
-        self.notebook.pack(fill=BOTH, expand=True, padx=5, pady=5)
+        self.notebook = QTabWidget()
+        self.notebook.tabBar().setVisible(False)
+        self.content_layout.addWidget(self.notebook)
 
-        self.devices_frame = tb.Frame(self.notebook)
-        self.notebook.add(self.devices_frame, text="📱 设备")
+        # Dashboard
+        self.dashboard_frame = QWidget()
+        self.notebook.addTab(self.dashboard_frame, "仪表盘")
+        self._create_dashboard(self.dashboard_frame)
+
+        self.devices_frame = QWidget()
+        self.notebook.addTab(self.devices_frame, "设备")
         self._create_card_area(self.devices_frame, "devices")
 
-        self.sensors_frame = tb.Frame(self.notebook)
-        self.notebook.add(self.sensors_frame, text="📡 传感器")
+        self.sensors_frame = QWidget()
+        self.notebook.addTab(self.sensors_frame, "传感器")
         self._create_card_area(self.sensors_frame, "sensors")
 
-        self.triggers_frame = tb.Frame(self.notebook)
-        self.notebook.add(self.triggers_frame, text="⚡ 触发器")
+        self.triggers_frame = QWidget()
+        self.notebook.addTab(self.triggers_frame, "触发器")
         self._create_card_area(self.triggers_frame, "triggers")
 
         self.create_log_tab()
         self.create_active_intelligence_tab()
         self.create_servers_tab()
-    def _create_card_area(self, parent, category):
-        nav_frame = tb.Frame(parent)
-        nav_frame.pack(fill=X, pady=5)
 
-        prev_btn = tb.Button(nav_frame, text="◀ 上一页",
-                             command=lambda: self._prev_page(category),
-                             state=DISABLED, bootstyle="secondary-outline")
-        prev_btn.pack(side=LEFT, padx=10)
+        # 默认选中仪表盘
+        self.sidebar_buttons["dashboard"].setChecked(True)
 
-        page_label = tb.Label(nav_frame, text="第 1 页", font=("微软雅黑", 10),
-                              bootstyle="inverse-secondary")
-        page_label.pack(side=LEFT, expand=True)
+    def _create_dashboard(self, parent):
+        layout = QVBoxLayout(parent)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(20)
 
-        next_btn = tb.Button(nav_frame, text="下一页 ▶",
-                             command=lambda: self._next_page(category),
-                             bootstyle="secondary-outline")
-        next_btn.pack(side=RIGHT, padx=10)
+        # 统计卡片行
+        stats_row = QWidget()
+        stats_layout = QHBoxLayout(stats_row)
+        stats_layout.setContentsMargins(0, 0, 0, 0)
+        stats_layout.setSpacing(16)
 
-        setattr(self, f"{category}_prev_btn", prev_btn)
-        setattr(self, f"{category}_next_btn", next_btn)
-        setattr(self, f"{category}_page_label", page_label)
+        self.stat_cards = {}
+        stat_defs = [
+            ("devices", "📱 设备总数", "#4a90d9", "0"),
+            ("sensors", "📡 传感器", "#27ae60", "0"),
+            ("triggers", "⚡ 触发器", "#f39c12", "0"),
+            ("health", "❤️ 系统健康", "#e74c3c", "良好"),
+        ]
 
-        canvas = tk.Canvas(parent, bg=self.style.colors.bg, highlightthickness=0)
-        scrollbar = ttk.Scrollbar(parent, orient=VERTICAL, command=canvas.yview)
-        canvas.configure(yscrollcommand=scrollbar.set)
+        for key, title, color, default_val in stat_defs:
+            card = QFrame()
+            card.setProperty("cssClass", "stat-card")
+            card.setStyleSheet("")
+            card.setMinimumHeight(120)
+            card_layout = QVBoxLayout(card)
+            card_layout.setContentsMargins(20, 16, 20, 16)
+            card_layout.setSpacing(6)
 
-        scrollbar.pack(side=RIGHT, fill=Y)
-        canvas.pack(side=LEFT, fill=BOTH, expand=True, padx=10, pady=5)
+            title_lbl = QLabel(title)
+            title_lbl.setStyleSheet(f"color: {color}; font-size: 13px; font-weight: 600;")
+            card_layout.addWidget(title_lbl)
 
-        container = tb.Frame(canvas)
-        canvas_window = canvas.create_window((0, 0), window=container, anchor=NW)
+            val_lbl = QLabel(default_val)
+            val_font = QFont()
+            val_font.setBold(True)
+            val_font.setPointSize(28)
+            val_lbl.setFont(val_font)
+            val_lbl.setStyleSheet("color: #e8e8e8;" if self._is_dark else "color: #2c3e50;")
+            card_layout.addWidget(val_lbl)
 
-        container.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
-        canvas.bind("<Configure>", lambda e: canvas.itemconfig(canvas_window, width=e.width))
+            stats_layout.addWidget(card, 1)
+            self.stat_cards[key] = val_lbl
 
-        setattr(self, f"{category}_canvas", canvas)
-        setattr(self, f"{category}_container", container)
-    def apply_theme(self, theme_name):
-        """动态切换主题"""
-        self.style.theme_use(theme_name)
+        layout.addWidget(stats_row)
+
+        # 下方两列
+        bottom_split = QSplitter(Qt.Orientation.Horizontal)
+
+        # 左侧：最近活动
+        left_widget = QWidget()
+        left_layout = QVBoxLayout(left_widget)
+        left_layout.setContentsMargins(0, 0, 0, 0)
+        left_layout.setSpacing(12)
+
+        act_title = QLabel("📋 最近活动")
+        act_title_font = QFont()
+        act_title_font.setBold(True)
+        act_title_font.setPointSize(14)
+        act_title.setFont(act_title_font)
+        left_layout.addWidget(act_title)
+
+        self.activity_list = QListWidget()
+        self.activity_list.setMaximumHeight(320)
+        left_layout.addWidget(self.activity_list)
+
+        bottom_split.addWidget(left_widget)
+
+        # 右侧：快捷操作
+        right_widget = QWidget()
+        right_layout = QVBoxLayout(right_widget)
+        right_layout.setContentsMargins(0, 0, 0, 0)
+        right_layout.setSpacing(12)
+
+        quick_title = QLabel("⚡ 快捷操作")
+        quick_title_font = QFont()
+        quick_title_font.setBold(True)
+        quick_title_font.setPointSize(14)
+        quick_title.setFont(quick_title_font)
+        right_layout.addWidget(quick_title)
+
+        quick_grid = QWidget()
+        quick_grid_layout = QGridLayout(quick_grid)
+        quick_grid_layout.setContentsMargins(0, 0, 0, 0)
+        quick_grid_layout.setSpacing(12)
+
+        quick_actions = [
+            ("🔄 刷新全部", self._refresh_all),
+            ("🔍 立即巡检", self.manual_inspect),
+            ("📤 导出配置", self.export_config),
+            ("🧹 清空日志", self.clear_logs),
+        ]
+
+        for i, (text, callback) in enumerate(quick_actions):
+            btn = _make_btn(text, "primary-outline", callback)
+            btn.setMinimumHeight(56)
+            btn.setStyleSheet(btn.styleSheet() + "font-size: 14px; font-weight: 500;")
+            quick_grid_layout.addWidget(btn, i // 2, i % 2)
+
+        right_layout.addWidget(quick_grid)
+        right_layout.addStretch()
+
+        bottom_split.addWidget(right_widget)
+        bottom_split.setSizes([500, 500])
+
+        layout.addWidget(bottom_split, 1)
+
+    def _update_dashboard(self):
+        self.stat_cards["devices"].setText(str(len(iot_manager.devices)))
+        self.stat_cards["sensors"].setText(str(len(iot_manager.sensors)))
+        self.stat_cards["triggers"].setText(str(len(iot_manager.triggers)))
+
+        health = "良好" if len(iot_manager.devices) > 0 or len(iot_manager.sensors) > 0 else "空闲"
+        self.stat_cards["health"].setText(health)
+
+        self.activity_list.clear()
+        logs = iot_logger.get_logs(5)
+        for log in logs:
+            typ = log.get("type", "")
+            ts = log.get("timestamp", "")[:19]
+            if typ == "command":
+                text = f"[{ts}] 📤 指令 → {log.get('device_name', '')}: {log.get('command', '')}"
+            elif typ == "sensor":
+                text = f"[{ts}] 📥 传感器 → {log.get('device_name', '')}: {log.get('message', '')[:40]}"
+            elif typ == "trigger":
+                text = f"[{ts}] ⚡ 触发器 → {log.get('trigger_name', '')}"
+            else:
+                text = f"[{ts}] {typ}"
+            self.activity_list.addItem(text)
+
+    def _create_card_area(self, parent, tab_name):
+        tab_layout = QVBoxLayout(parent)
+        tab_layout.setContentsMargins(0, 0, 0, 0)
+        tab_layout.setSpacing(0)
+
+        # 现代分页导航
+        nav = QWidget()
+        nav_layout = QHBoxLayout(nav)
+        nav_layout.setContentsMargins(20, 12, 20, 12)
+
+        prev_btn = QPushButton("← 上一页")
+        prev_btn.setProperty("cssClass", "secondary-outline")
+        prev_btn.setStyleSheet("")
+        prev_btn.setEnabled(False)
+        prev_btn.clicked.connect(lambda: self._prev_page(tab_name))
+        prev_btn.setFixedHeight(36)
+
+        page_label = QLabel("第 1 页")
+        page_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        page_label.setStyleSheet("font-weight: 600; color: #8b8ba7;")
+
+        next_btn = QPushButton("下一页 →")
+        next_btn.setProperty("cssClass", "secondary-outline")
+        next_btn.setStyleSheet("")
+        next_btn.clicked.connect(lambda: self._next_page(tab_name))
+        next_btn.setFixedHeight(36)
+
+        nav_layout.addStretch()
+        nav_layout.addWidget(prev_btn)
+        nav_layout.addSpacing(16)
+        nav_layout.addWidget(page_label)
+        nav_layout.addSpacing(16)
+        nav_layout.addWidget(next_btn)
+        nav_layout.addStretch()
+
+        tab_layout.addWidget(nav)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        container = QWidget()
+        container_layout = QGridLayout(container)
+        container_layout.setAlignment(
+            Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft
+        )
+        container_layout.setContentsMargins(20, 12, 20, 20)
+        container_layout.setSpacing(16)
+        scroll.setWidget(container)
+
+        tab_layout.addWidget(scroll)
+
+        # 空状态
+        empty_widget = QWidget()
+        empty_layout = QVBoxLayout(empty_widget)
+        empty_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        empty_icon = QLabel("📦")
+        empty_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        empty_icon.setStyleSheet("font-size: 64px; margin-bottom: 16px;")
+        empty_layout.addWidget(empty_icon)
+        empty_text = QLabel("暂无设备")
+        empty_text.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        empty_text.setStyleSheet("font-size: 18px; color: #7f8c8d; font-weight: 600;")
+        empty_layout.addWidget(empty_text)
+        empty_sub = QLabel("点击下方按钮添加您的第一个设备")
+        empty_sub.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        empty_sub.setStyleSheet("font-size: 13px; color: #95a5a6; margin-top: 4px;")
+        empty_layout.addWidget(empty_sub)
+        empty_btn = _make_btn("➕ 添加设备", "primary", lambda: self.add_device_wizard())
+        empty_btn.setFixedWidth(160)
+        empty_btn.setFixedHeight(40)
+        empty_btn_layout = QHBoxLayout()
+        empty_btn_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        empty_btn_layout.addWidget(empty_btn)
+        empty_layout.addLayout(empty_btn_layout)
+        empty_widget.setVisible(False)
+
+        tab_layout.addWidget(empty_widget)
+
+        setattr(self, f"{tab_name}_prev_btn", prev_btn)
+        setattr(self, f"{tab_name}_next_btn", next_btn)
+        setattr(self, f"{tab_name}_page_label", page_label)
+        setattr(self, f"{tab_name}_scroll", scroll)
+        setattr(self, f"{tab_name}_container", container)
+        setattr(self, f"{tab_name}_container_layout", container_layout)
+        setattr(self, f"{tab_name}_empty_widget", empty_widget)
+
     def _refresh_all(self):
         self._refresh_devices()
         self._refresh_sensors()
         self._refresh_triggers()
+        if hasattr(self, '_update_dashboard'):
+            self._update_dashboard()
 
     def _refresh_devices(self):
         self._refresh_category("devices", iot_manager.devices.values(), self._create_device_card)
@@ -219,155 +1330,340 @@ class TGHomeApp:
 
     def _refresh_category(self, category, items, card_creator):
         container = getattr(self, f"{category}_container")
-        for widget in container.winfo_children():
-            widget.destroy()
+        layout = getattr(self, f"{category}_container_layout")
+        empty_widget = getattr(self, f"{category}_empty_widget")
+
+        while layout.count():
+            item = layout.takeAt(0)
+            widget = item.widget()
+            if widget:
+                widget.deleteLater()
 
         total = len(items)
         start = self.current_pages[category] * self.cards_per_page
         end = min(start + self.cards_per_page, total)
         page_items = list(items)[start:end]
 
-        cols = 5
-        for idx, item in enumerate(page_items):
+        if total == 0:
+            empty_widget.setVisible(True)
+            container.setVisible(False)
+        else:
+            empty_widget.setVisible(False)
+            container.setVisible(True)
+
+        cols = max(1, container.width() // 300) if container.width() > 0 else 4
+        for idx, item_data in enumerate(page_items):
             row = idx // cols
             col = idx % cols
-            card = card_creator(item, category)
-            card.grid(row=row, column=col, padx=8, pady=8, sticky="nsew")
-            container.columnconfigure(col, weight=1)
-        for i in range((len(page_items) + cols - 1) // cols):
-            container.rowconfigure(i, weight=1)
+            card = card_creator(item_data, category)
+            layout.addWidget(card, row, col)
+
+        for i in range(cols):
+            layout.setColumnStretch(i, 1)
 
         prev_btn = getattr(self, f"{category}_prev_btn")
         next_btn = getattr(self, f"{category}_next_btn")
         page_label = getattr(self, f"{category}_page_label")
-        prev_btn.config(state=NORMAL if self.current_pages[category] > 0 else DISABLED)
-        next_btn.config(state=NORMAL if end < total else DISABLED)
-        page_label.config(text=f"第 {self.current_pages[category]+1} 页")
+        prev_btn.setEnabled(self.current_pages[category] > 0)
+        next_btn.setEnabled(end < total)
+        page_label.setText(f"第 {self.current_pages[category] + 1} 页")
 
     def _prev_page(self, category):
         if self.current_pages[category] > 0:
             self.current_pages[category] -= 1
             getattr(self, f"_refresh_{category}")()
-            canvas = getattr(self, f"{category}_canvas")
-            canvas.yview_moveto(0)
+            scroll = getattr(self, f"{category}_scroll")
+            scroll.verticalScrollBar().setValue(0)
 
     def _next_page(self, category):
         total = len(getattr(iot_manager, category))
         if (self.current_pages[category] + 1) * self.cards_per_page < total:
             self.current_pages[category] += 1
             getattr(self, f"_refresh_{category}")()
-            canvas = getattr(self, f"{category}_canvas")
-            canvas.yview_moveto(0)
+            scroll = getattr(self, f"{category}_scroll")
+            scroll.verticalScrollBar().setValue(0)
 
     # -------------------- 卡片创建 --------------------
     def _create_device_card(self, dev, category):
-        card = tb.Frame(getattr(self, f"{category}_container"), bootstyle="secondary", relief=tk.RAISED, borderwidth=1)
-        card.columnconfigure(0, weight=1)
+        card = ModernCard()
+        card_layout = QVBoxLayout(card)
+        card_layout.setContentsMargins(16, 16, 16, 16)
+        card_layout.setSpacing(10)
 
-        icon_path = os.path.join("icon", dev.icon) if dev.icon else None
-        if icon_path and os.path.exists(icon_path):
-            try:
-                img = Image.open(icon_path)
-                img = img.resize((80, 80), Image.Resampling.LANCZOS)
-                photo = ImageTk.PhotoImage(img)
-                icon_label = tb.Label(card, image=photo)
-                icon_label.image = photo
-                icon_label.grid(row=0, column=0, pady=10)
-            except:
-                self._default_icon(card)
-        else:
-            self._default_icon(card)
+        # 顶部：图标 + 名称 + 删除按钮
+        header = QWidget()
+        header_layout = QHBoxLayout(header)
+        header_layout.setContentsMargins(0, 0, 0, 0)
+        header_layout.setSpacing(12)
 
-        tb.Label(card, text=dev.name, font=("微软雅黑", 11, "bold"),
-                 bootstyle="inverse-secondary").grid(row=1, column=0, pady=5)
+        icon_label = IconLabel("device", 48)
+        header_layout.addWidget(icon_label)
 
+        info_layout = QVBoxLayout()
+        info_layout.setSpacing(4)
+        name_label = QLabel(dev.name)
+        name_font = QFont()
+        name_font.setBold(True)
+        name_font.setPointSize(14)
+        name_label.setFont(name_font)
+        info_layout.addWidget(name_label)
+
+        status_layout = QHBoxLayout()
+        status_layout.setSpacing(6)
+        status_dot = QLabel("●")
+        status_dot.setStyleSheet("color: #27ae60; font-size: 10px;")
+        status_layout.addWidget(status_dot)
+        type_label = QLabel("开关设备" if dev.device_type == 'bool' else "复杂设备")
+        type_label.setStyleSheet("color: #7f8c8d; font-size: 11px;")
+        status_layout.addWidget(type_label)
+        status_layout.addStretch()
+        info_layout.addLayout(status_layout)
+        header_layout.addLayout(info_layout, 1)
+
+        # 删除按钮（右上角小图标）
+        del_btn = QPushButton("🗑")
+        del_btn.setFixedSize(28, 28)
+        del_btn.setStyleSheet("""
+            QPushButton {
+                background-color: transparent;
+                border: none;
+                color: #7f8c8d;
+                font-size: 14px;
+                border-radius: 6px;
+            }
+            QPushButton:hover {
+                background-color: #e74c3c22;
+                color: #e74c3c;
+            }
+        """)
+        del_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        del_btn.clicked.connect(lambda: self._delete_device(dev.name))
+        header_layout.addWidget(del_btn, alignment=Qt.AlignmentFlag.AlignTop)
+
+        card_layout.addWidget(header)
+
+        # 分隔线
+        sep = QFrame()
+        sep.setFrameShape(QFrame.Shape.HLine)
+        sep.setStyleSheet("color: #2a3a5e;")
+        sep.setFixedHeight(1)
+        card_layout.addWidget(sep)
+
+        # 操作区
         if dev.device_type == 'bool':
-            btn_frame = tb.Frame(card)
-            btn_frame.grid(row=2, column=0, pady=5)
-            tb.Button(btn_frame, text="ON", bootstyle="success",
-                      command=lambda: self._control_device(dev.name, "on")).pack(side=LEFT, padx=2)
-            tb.Button(btn_frame, text="OFF", bootstyle="danger",
-                      command=lambda: self._control_device(dev.name, "off")).pack(side=LEFT, padx=2)
+            btn_row = QWidget()
+            btn_row_layout = QHBoxLayout(btn_row)
+            btn_row_layout.setContentsMargins(0, 0, 0, 0)
+            btn_row_layout.setSpacing(10)
+            on_btn = _make_btn("ON", "success", lambda: self._control_device(dev.name, "on"))
+            on_btn.setFixedHeight(36)
+            off_btn = _make_btn("OFF", "danger", lambda: self._control_device(dev.name, "off"))
+            off_btn.setFixedHeight(36)
+            btn_row_layout.addWidget(on_btn)
+            btn_row_layout.addWidget(off_btn)
+            card_layout.addWidget(btn_row)
         else:
+            preset_layout = QVBoxLayout()
+            preset_layout.setSpacing(6)
             for i, preset in enumerate(dev.presets[:2]):
-                btn = tb.Button(card, text=preset['name'], bootstyle="primary-outline",
-                                command=lambda p=preset['name']: self._control_device(dev.name, p))
-                btn.grid(row=2+i, column=0, pady=2, sticky="ew")
+                btn = _make_btn(preset['name'], "primary-outline",
+                                lambda p=preset['name']: self._control_device(dev.name, p))
+                btn.setFixedHeight(32)
+                preset_layout.addWidget(btn)
             if len(dev.presets) > 2:
-                more_btn = tb.Button(card, text="更多...", bootstyle="secondary-outline",
-                                     command=lambda: self._show_preset_menu(dev))
-                more_btn.grid(row=4, column=0, pady=2, sticky="ew")
+                more_btn = _make_btn("更多...", "secondary-outline",
+                                     lambda d=dev: self._show_preset_menu(d))
+                more_btn.setFixedHeight(32)
+                preset_layout.addWidget(more_btn)
+            card_layout.addLayout(preset_layout)
 
-        del_btn = tb.Button(card, text="删除", bootstyle="danger-outline",
-                            command=lambda: self._delete_device(dev.name))
-        del_btn.grid(row=5, column=0, pady=10, sticky="ew")
+        # IP/端口信息
+        ip = dev.params.get('ip', '')
+        port = dev.params.get('port', '')
+        if ip or port:
+            info = QLabel(f"{dev.protocol.upper()}  {ip}:{port}")
+            info.setStyleSheet("color: #5a5a7a; font-size: 11px; font-family: 'Consolas', monospace;")
+            card_layout.addWidget(info)
+
+        card_layout.addStretch()
         return card
 
     def _create_sensor_card(self, sensor, category):
-        card = tb.Frame(getattr(self, f"{category}_container"), bootstyle="secondary", relief=tk.RAISED, borderwidth=1)
-        card.columnconfigure(0, weight=1)
+        card = ModernCard()
+        card_layout = QVBoxLayout(card)
+        card_layout.setContentsMargins(16, 16, 16, 16)
+        card_layout.setSpacing(10)
 
-        icon_path = os.path.join("icon", sensor.icon) if sensor.icon else None
-        if icon_path and os.path.exists(icon_path):
-            try:
-                img = Image.open(icon_path)
-                img = img.resize((80, 80), Image.Resampling.LANCZOS)
-                photo = ImageTk.PhotoImage(img)
-                icon_label = tb.Label(card, image=photo)
-                icon_label.image = photo
-                icon_label.grid(row=0, column=0, pady=10)
-            except:
-                self._default_icon(card)
-        else:
-            self._default_icon(card)
+        header = QWidget()
+        header_layout = QHBoxLayout(header)
+        header_layout.setContentsMargins(0, 0, 0, 0)
+        header_layout.setSpacing(12)
 
-        tb.Label(card, text=sensor.name, font=("微软雅黑", 11, "bold"),
-                 bootstyle="inverse-secondary").grid(row=1, column=0, pady=5)
+        icon_label = IconLabel("sensor", 48)
+        header_layout.addWidget(icon_label)
 
-        info_text = f"协议: {sensor.protocol}\nIP: {sensor.params.get('ip', '')}\n端口: {sensor.params.get('port', '')}"
-        tb.Label(card, text=info_text, font=("微软雅黑", 8),
-                 bootstyle="secondary").grid(row=2, column=0, pady=5)
+        info_layout = QVBoxLayout()
+        info_layout.setSpacing(4)
+        name_label = QLabel(sensor.name)
+        name_font = QFont()
+        name_font.setBold(True)
+        name_font.setPointSize(14)
+        name_label.setFont(name_font)
+        info_layout.addWidget(name_label)
 
-        del_btn = tb.Button(card, text="删除", bootstyle="danger-outline",
-                            command=lambda: self._delete_sensor(sensor.name))
-        del_btn.grid(row=3, column=0, pady=10, sticky="ew")
+        status_layout = QHBoxLayout()
+        status_layout.setSpacing(6)
+        status_dot = QLabel("●")
+        status_dot.setStyleSheet("color: #27ae60; font-size: 10px;")
+        status_layout.addWidget(status_dot)
+        proto_label = QLabel(sensor.protocol.upper())
+        proto_label.setStyleSheet("color: #7f8c8d; font-size: 11px;")
+        status_layout.addWidget(proto_label)
+        status_layout.addStretch()
+        info_layout.addLayout(status_layout)
+        header_layout.addLayout(info_layout, 1)
+
+        del_btn = QPushButton("🗑")
+        del_btn.setFixedSize(28, 28)
+        del_btn.setStyleSheet("""
+            QPushButton {
+                background-color: transparent;
+                border: none;
+                color: #7f8c8d;
+                font-size: 14px;
+                border-radius: 6px;
+            }
+            QPushButton:hover {
+                background-color: #e74c3c22;
+                color: #e74c3c;
+            }
+        """)
+        del_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        del_btn.clicked.connect(lambda: self._delete_sensor(sensor.name))
+        header_layout.addWidget(del_btn, alignment=Qt.AlignmentFlag.AlignTop)
+
+        card_layout.addWidget(header)
+
+        sep = QFrame()
+        sep.setFrameShape(QFrame.Shape.HLine)
+        sep.setStyleSheet("color: #2a3a5e;")
+        sep.setFixedHeight(1)
+        card_layout.addWidget(sep)
+
+        ip = sensor.params.get('ip', '')
+        port = sensor.params.get('port', '')
+        info_text = f"IP: {ip}\n端口: {port}"
+        info_label = QLabel(info_text)
+        info_label.setWordWrap(True)
+        info_label.setStyleSheet("color: #8b8ba7; font-size: 12px; line-height: 1.5;")
+        card_layout.addWidget(info_label)
+
+        card_layout.addStretch()
+
+        del_btn_bottom = _make_btn("删除传感器", "danger-outline",
+                                   lambda: self._delete_sensor(sensor.name))
+        del_btn_bottom.setFixedHeight(32)
+        card_layout.addWidget(del_btn_bottom)
         return card
 
     def _create_trigger_card(self, trigger, category):
-        card = tb.Frame(getattr(self, f"{category}_container"), bootstyle="secondary", relief=tk.RAISED, borderwidth=1)
-        card.columnconfigure(0, weight=1)
+        card = ModernCard()
+        card_layout = QVBoxLayout(card)
+        card_layout.setContentsMargins(16, 16, 16, 16)
+        card_layout.setSpacing(10)
 
-        tb.Label(card, text="⚡", font=("Segoe UI", 36)).grid(row=0, column=0, pady=10)
+        header = QWidget()
+        header_layout = QHBoxLayout(header)
+        header_layout.setContentsMargins(0, 0, 0, 0)
+        header_layout.setSpacing(12)
 
-        tb.Label(card, text=trigger.name, font=("微软雅黑", 11, "bold"),
-                 bootstyle="inverse-secondary").grid(row=1, column=0, pady=5)
+        icon_label = IconLabel("trigger", 48)
+        header_layout.addWidget(icon_label)
 
-        # 显示任务列表摘要
+        info_layout = QVBoxLayout()
+        info_layout.setSpacing(4)
+        name_label = QLabel(trigger.name)
+        name_font = QFont()
+        name_font.setBold(True)
+        name_font.setPointSize(14)
+        name_label.setFont(name_font)
+        info_layout.addWidget(name_label)
+
+        status_layout = QHBoxLayout()
+        status_layout.setSpacing(6)
+        status_color = "#27ae60" if trigger.enabled else "#e74c3c"
+        status_dot = QLabel("●")
+        status_dot.setStyleSheet(f"color: {status_color}; font-size: 10px;")
+        status_layout.addWidget(status_dot)
+        status_text = "已启用" if trigger.enabled else "已禁用"
+        status_label = QLabel(status_text)
+        status_label.setStyleSheet(f"color: {status_color}; font-size: 11px; font-weight: 600;")
+        status_layout.addWidget(status_label)
+        status_layout.addStretch()
+        info_layout.addLayout(status_layout)
+        header_layout.addLayout(info_layout, 1)
+
+        del_btn = QPushButton("🗑")
+        del_btn.setFixedSize(28, 28)
+        del_btn.setStyleSheet("""
+            QPushButton {
+                background-color: transparent;
+                border: none;
+                color: #7f8c8d;
+                font-size: 14px;
+                border-radius: 6px;
+            }
+            QPushButton:hover {
+                background-color: #e74c3c22;
+                color: #e74c3c;
+            }
+        """)
+        del_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        del_btn.clicked.connect(lambda: self._delete_trigger(trigger.name))
+        header_layout.addWidget(del_btn, alignment=Qt.AlignmentFlag.AlignTop)
+
+        card_layout.addWidget(header)
+
+        sep = QFrame()
+        sep.setFrameShape(QFrame.Shape.HLine)
+        sep.setStyleSheet("color: #2a3a5e;")
+        sep.setFixedHeight(1)
+        card_layout.addWidget(sep)
+
         tasks = trigger.tasks
-        task_summary = "\n".join([f"- {self._task_desc(t)}" for t in tasks[:3]])
+        task_summary = "\n".join([f"• {self._task_desc(t)}" for t in tasks[:3]])
         if len(tasks) > 3:
             task_summary += f"\n... 共{len(tasks)}个任务"
-        tb.Label(card, text=task_summary, font=("微软雅黑", 8),
-                 bootstyle="secondary", wraplength=150).grid(row=2, column=0, pady=5)
+        summary_label = QLabel(task_summary)
+        summary_label.setWordWrap(True)
+        summary_label.setStyleSheet("color: #8b8ba7; font-size: 12px; line-height: 1.6;")
+        summary_label.setMaximumHeight(100)
+        card_layout.addWidget(summary_label)
 
-        # 编辑按钮
-        edit_btn = tb.Button(card, text="✏️ 编辑任务", bootstyle="primary-outline",
-                             command=lambda: self._edit_trigger_tasks(trigger))
-        edit_btn.grid(row=3, column=0, pady=2, sticky="ew")
+        card_layout.addStretch()
 
-        # 启用/禁用按钮
+        btn_row = QWidget()
+        btn_row_layout = QHBoxLayout(btn_row)
+        btn_row_layout.setContentsMargins(0, 0, 0, 0)
+        btn_row_layout.setSpacing(8)
+
+        edit_btn = _make_btn("编辑任务", "primary-outline",
+                             lambda checked=False, t=trigger: self._edit_trigger_tasks(t))
+        edit_btn.setFixedHeight(32)
+        btn_row_layout.addWidget(edit_btn)
+
         def toggle_enable():
             trigger.enabled = not trigger.enabled
             iot_manager._save_triggers()
             self._refresh_triggers()
-        status_text = "✅ 已启用" if trigger.enabled else "❌ 已禁用"
-        status_btn = tb.Button(card, text=status_text, bootstyle="success-outline" if trigger.enabled else "secondary-outline",
-                               command=toggle_enable)
-        status_btn.grid(row=4, column=0, pady=2, sticky="ew")
 
-        del_btn = tb.Button(card, text="删除", bootstyle="danger-outline",
-                            command=lambda: self._delete_trigger(trigger.name))
-        del_btn.grid(row=5, column=0, pady=10, sticky="ew")
+        status_btn_text = "禁用" if trigger.enabled else "启用"
+        status_btn_css = "warning-outline" if trigger.enabled else "success-outline"
+        status_btn = _make_btn(status_btn_text, status_btn_css, toggle_enable)
+        status_btn.setFixedHeight(32)
+        btn_row_layout.addWidget(status_btn)
+
+        card_layout.addWidget(btn_row)
         return card
 
     def _task_desc(self, task):
@@ -377,7 +1673,7 @@ class TGHomeApp:
             send_reply = task.get('send_reply', False)
             reply_flag = " 📤回传" if send_reply else ""
             return f"🤖 通知AI: {prompt}{reply_flag}"
-        elif ttype in ('control_device', 'control_bool_device'):  # 兼容两种类型
+        elif ttype in ('control_device', 'control_bool_device'):
             return f"📟 控制设备 {task.get('device_name')} → {task.get('command')}"
         elif ttype == 'qq_notify':
             target_type = task.get('target_type')
@@ -385,139 +1681,221 @@ class TGHomeApp:
             return f"💬 QQ{target_display} {task.get('target_id')} → {task.get('content', '')[:20]}"
         return "未知任务"
 
-    def _default_icon(self, parent):
-        tb.Label(parent, text="🔌", font=("Segoe UI", 36)).grid(row=0, column=0, pady=10)
+    def _default_icon(self, layout):
+        label = QLabel("🔌")
+        label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        label.setStyleSheet("font-size: 32px;")
+        layout.addWidget(label)
 
     # -------------------- 控制与删除 --------------------
     def _control_device(self, dev_name, command):
         def task():
             result = iot_manager.send_to_device(dev_name, command)
-            self.root.after(0, lambda: self.status_label.config(text=result))
+            self.status_signal.emit(result)
         threading.Thread(target=task, daemon=True).start()
 
     def _delete_device(self, dev_name):
-        if messagebox.askyesno("确认", f"确定要删除设备 {dev_name} 吗？"):
+        reply = QMessageBox.question(self, "确认", f"确定要删除设备 {dev_name} 吗？",
+                                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        if reply == QMessageBox.StandardButton.Yes:
             iot_manager.remove_device(dev_name)
             self._refresh_devices()
 
     def _delete_sensor(self, sensor_name):
-        if messagebox.askyesno("确认", f"确定要删除传感器 {sensor_name} 吗？"):
+        reply = QMessageBox.question(self, "确认", f"确定要删除传感器 {sensor_name} 吗？",
+                                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        if reply == QMessageBox.StandardButton.Yes:
             iot_manager.remove_sensor(sensor_name)
             self._refresh_sensors()
 
     def _delete_trigger(self, trigger_name):
-        if messagebox.askyesno("确认", f"确定要删除触发器 {trigger_name} 吗？"):
+        reply = QMessageBox.question(self, "确认", f"确定要删除触发器 {trigger_name} 吗？",
+                                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        if reply == QMessageBox.StandardButton.Yes:
             iot_manager.remove_trigger(trigger_name)
             self._refresh_triggers()
 
     def _show_preset_menu(self, dev):
-        menu = tk.Menu(self.root, tearoff=0)
+        menu = QMenu(self)
         for preset in dev.presets:
-            menu.add_command(label=preset['name'],
-                             command=lambda p=preset['name']: self._control_device(dev.name, p))
-        menu.post(self.root.winfo_pointerx(), self.root.winfo_pointery())
+            action = menu.addAction(preset['name'])
+            action.triggered.connect(lambda checked, p=preset['name']: self._control_device(dev.name, p))
+        menu.exec(QCursor.pos())
 
     # -------------------- 添加设备向导 --------------------
     def add_device_wizard(self):
-        wizard = tb.Toplevel(self.root)
-        wizard.title("添加物联网设备")
-        wizard.geometry("550x600")
-        wizard.transient(self.root)
-        wizard.grab_set()
+        wizard = QDialog(self)
+        wizard.setWindowTitle("添加物联网设备")
+        wizard.resize(600, 650)
+        wizard.setWindowModality(Qt.WindowModality.WindowModal)
+        wizard.setMinimumSize(500, 450)
 
-        frame1 = tb.Frame(wizard, padding=10)
-        frame1.pack(fill=BOTH, expand=True)
+        main_stack = QStackedWidget()
+        wizard_layout = QVBoxLayout(wizard)
+        wizard_layout.setContentsMargins(0, 0, 0, 0)
+        wizard_layout.addWidget(main_stack)
 
-        tb.Label(frame1, text="设备名称:", font=("微软雅黑", 10)).grid(row=0, column=0, sticky=W, pady=5)
-        name_entry = tb.Entry(frame1, width=30)
-        name_entry.grid(row=0, column=1, sticky=EW, pady=5)
-
-        tb.Label(frame1, text="通信协议:", font=("微软雅黑", 10)).grid(row=1, column=0, sticky=W, pady=5)
-        protocol_var = tk.StringVar(value="udp")
-        proto_combo = tb.Combobox(frame1, textvariable=protocol_var, values=["udp", "tcp", "mqtt"],
-                                   state="readonly")
-        proto_combo.grid(row=1, column=1, sticky=EW, pady=5)
-
-        params_frame = ttk.LabelFrame(frame1, text="通信参数", padding=5)
-        params_frame.grid(row=2, column=0, columnspan=2, sticky=EW, pady=10)
-
+        wizard.temp_data = {}
         dynamic_widgets = {}
 
-        def update_params(*args):
-            for widget in params_frame.winfo_children():
-                widget.destroy()
+        # 步骤指示器
+        step_bar = QWidget()
+        step_layout = QHBoxLayout(step_bar)
+        step_layout.setContentsMargins(20, 16, 20, 8)
+        step_layout.setSpacing(0)
+        self._step_labels = []
+        for i, step_name in enumerate(["基本信息", "类型选择", "详细配置"]):
+            step_lbl = QLabel(f"{i+1}. {step_name}")
+            step_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            step_lbl.setStyleSheet("color: #5a5a7a; font-size: 12px; font-weight: 500; padding: 4px 12px;")
+            step_layout.addWidget(step_lbl)
+            self._step_labels.append(step_lbl)
+        wizard_layout.insertWidget(0, step_bar)
+
+        def update_steps(current_idx):
+            for i, lbl in enumerate(self._step_labels):
+                if i == current_idx:
+                    lbl.setStyleSheet("color: #4a90d9; font-size: 12px; font-weight: 600; padding: 4px 12px; border-bottom: 2px solid #4a90d9;")
+                elif i < current_idx:
+                    lbl.setStyleSheet("color: #27ae60; font-size: 12px; font-weight: 500; padding: 4px 12px;")
+                else:
+                    lbl.setStyleSheet("color: #5a5a7a; font-size: 12px; font-weight: 500; padding: 4px 12px;")
+
+        # ── 第1页：名称 + 协议 + 参数 ──
+        frame1 = QWidget()
+        f1_layout = QVBoxLayout(frame1)
+        f1_layout.setContentsMargins(24, 20, 24, 20)
+        f1_layout.setSpacing(12)
+
+        title1 = QLabel("基本信息")
+        title1_font = QFont()
+        title1_font.setBold(True)
+        title1_font.setPointSize(16)
+        title1.setFont(title1_font)
+        f1_layout.addWidget(title1)
+        f1_layout.addSpacing(8)
+
+        row0 = QWidget()
+        r0_layout = QHBoxLayout(row0)
+        r0_layout.setContentsMargins(0, 0, 0, 0)
+        r0_layout.addWidget(QLabel("设备名称:"))
+        name_entry = QLineEdit()
+        name_entry.setMinimumWidth(300)
+        r0_layout.addWidget(name_entry)
+        f1_layout.addWidget(row0)
+
+        row1 = QWidget()
+        r1_layout = QHBoxLayout(row1)
+        r1_layout.setContentsMargins(0, 0, 0, 0)
+        r1_layout.addWidget(QLabel("通信协议:"))
+        proto_combo = QComboBox()
+        proto_combo.addItems(["udp", "tcp", "mqtt"])
+        proto_combo.setEditable(False)
+        r1_layout.addWidget(proto_combo)
+        f1_layout.addWidget(row1)
+
+        # 参数组
+        params_group = QFrame()
+        params_group.setProperty("cssClass", "group-frame")
+        params_group.setStyleSheet("")
+        pg_layout = QVBoxLayout(params_group)
+        pg_layout.setContentsMargins(16, 16, 16, 16)
+
+        params_label = QLabel("通信参数")
+        params_label_font = QFont()
+        params_label_font.setBold(True)
+        params_label.setFont(params_label_font)
+        pg_layout.addWidget(params_label)
+        pg_layout.addSpacing(8)
+
+        params_content = QWidget()
+        params_content_layout = QVBoxLayout(params_content)
+        params_content_layout.setContentsMargins(0, 0, 0, 0)
+        params_content_layout.setSpacing(8)
+        pg_layout.addWidget(params_content)
+
+        f1_layout.addWidget(params_group)
+
+        def update_params():
+            for i in reversed(range(params_content_layout.count())):
+                w = params_content_layout.takeAt(i).widget()
+                if w:
+                    w.deleteLater()
             dynamic_widgets.clear()
-            proto = protocol_var.get()
+            proto = proto_combo.currentText()
             if proto in ("udp", "tcp"):
-                tb.Label(params_frame, text="IP地址:").grid(row=0, column=0, sticky=W, pady=2)
-                ip_entry = tb.Entry(params_frame)
-                ip_entry.grid(row=0, column=1, sticky=EW, pady=2)
-                tb.Label(params_frame, text="端口:").grid(row=1, column=0, sticky=W, pady=2)
-                port_entry = tb.Entry(params_frame)
-                port_entry.grid(row=1, column=1, sticky=EW, pady=2)
+                r1w = QWidget()
+                r1l = QHBoxLayout(r1w)
+                r1l.setContentsMargins(0, 0, 0, 0)
+                r1l.addWidget(QLabel("IP地址:"))
+                ip_entry = QLineEdit()
+                r1l.addWidget(ip_entry)
+                params_content_layout.addWidget(r1w)
+                r2w = QWidget()
+                r2l = QHBoxLayout(r2w)
+                r2l.setContentsMargins(0, 0, 0, 0)
+                r2l.addWidget(QLabel("端口:"))
+                port_entry = QLineEdit()
+                r2l.addWidget(port_entry)
+                params_content_layout.addWidget(r2w)
                 dynamic_widgets['ip'] = ip_entry
                 dynamic_widgets['port'] = port_entry
             elif proto == "mqtt":
-                tb.Label(params_frame, text="Broker地址:").grid(row=0, column=0, sticky=W, pady=2)
-                broker_entry = tb.Entry(params_frame)
-                broker_entry.grid(row=0, column=1, sticky=EW, pady=2)
-                tb.Label(params_frame, text="端口:").grid(row=1, column=0, sticky=W, pady=2)
-                port_entry = tb.Entry(params_frame)
-                port_entry.grid(row=1, column=1, sticky=EW, pady=2)
-                tb.Label(params_frame, text="Topic:").grid(row=2, column=0, sticky=W, pady=2)
-                topic_entry = tb.Entry(params_frame)
-                topic_entry.grid(row=2, column=1, sticky=EW, pady=2)
-                tb.Label(params_frame, text="用户名(可选):").grid(row=3, column=0, sticky=W, pady=2)
-                mqtt_user_entry = tb.Entry(params_frame)
-                mqtt_user_entry.grid(row=3, column=1, sticky=EW, pady=2)
-                tb.Label(params_frame, text="密码(可选):").grid(row=4, column=0, sticky=W, pady=2)
-                mqtt_pass_entry = tb.Entry(params_frame, show="*")
-                mqtt_pass_entry.grid(row=4, column=1, sticky=EW, pady=2)
-                tb.Label(params_frame, text="Client ID (可选):").grid(row=5, column=0, sticky=W, pady=2)
-                mqtt_client_id_entry = tb.Entry(params_frame)
-                mqtt_client_id_entry.grid(row=5, column=1, sticky=EW, pady=2)
-                dynamic_widgets['broker'] = broker_entry
-                dynamic_widgets['port'] = port_entry
-                dynamic_widgets['topic'] = topic_entry
-                dynamic_widgets['username'] = mqtt_user_entry
-                dynamic_widgets['password'] = mqtt_pass_entry
-                dynamic_widgets['client_id'] = mqtt_client_id_entry
+                fields = [
+                    ("Broker地址:", "broker"),
+                    ("端口:", "port"),
+                    ("Topic:", "topic"),
+                    ("用户名(可选):", "username"),
+                    ("密码(可选):", "password"),
+                    ("Client ID (可选):", "client_id"),
+                ]
+                for label_text, key in fields:
+                    rw = QWidget()
+                    rl = QHBoxLayout(rw)
+                    rl.setContentsMargins(0, 0, 0, 0)
+                    rl.addWidget(QLabel(label_text))
+                    entry = QLineEdit()
+                    if key == "password":
+                        entry.setEchoMode(QLineEdit.EchoMode.Password)
+                    rl.addWidget(entry)
+                    params_content_layout.addWidget(rw)
+                    dynamic_widgets[key] = entry
 
-        protocol_var.trace_add('write', update_params)
+        proto_combo.currentTextChanged.connect(update_params)
         update_params()
 
         def next_step():
-            name = name_entry.get().strip()
+            name = name_entry.text().strip()
             if not name:
-                messagebox.showerror("错误", "请输入设备名称")
+                QMessageBox.critical(wizard, "错误", "请输入设备名称")
                 return
-            proto = protocol_var.get()
+            proto = proto_combo.currentText()
             params = {}
             try:
                 if proto in ("udp", "tcp"):
-                    ip = dynamic_widgets['ip'].get().strip()
-                    port = dynamic_widgets['port'].get().strip()
+                    ip = dynamic_widgets['ip'].text().strip()
+                    port = dynamic_widgets['port'].text().strip()
                     if not ip or not port:
-                        messagebox.showerror("错误", "请填写IP和端口")
+                        QMessageBox.critical(wizard, "错误", "请填写IP和端口")
                         return
                     params = {"ip": ip, "port": int(port)}
                 elif proto == "mqtt":
-                    broker = dynamic_widgets['broker'].get().strip()
-                    port = dynamic_widgets['port'].get().strip()
-                    topic = dynamic_widgets['topic'].get().strip()
+                    broker = dynamic_widgets['broker'].text().strip()
+                    port = dynamic_widgets['port'].text().strip()
+                    topic = dynamic_widgets['topic'].text().strip()
                     if not broker or not port or not topic:
-                        messagebox.showerror("错误", "请填写Broker、端口和Topic")
+                        QMessageBox.critical(wizard, "错误", "请填写Broker、端口和Topic")
                         return
                     params = {
                         "broker": broker,
                         "port": int(port),
                         "topic": topic,
-                        "username": dynamic_widgets.get('username', tb.Entry()).get(),
-                        "password": dynamic_widgets.get('password', tb.Entry()).get(),
-                        "client_id": dynamic_widgets.get('client_id', tb.Entry()).get().strip()
+                        "username": dynamic_widgets.get('username', QLineEdit()).text(),
+                        "password": dynamic_widgets.get('password', QLineEdit()).text(),
+                        "client_id": dynamic_widgets.get('client_id', QLineEdit()).text().strip()
                     }
             except ValueError:
-                messagebox.showerror("错误", "端口必须为数字")
+                QMessageBox.critical(wizard, "错误", "端口必须为数字")
                 return
 
             wizard.temp_data = {
@@ -525,219 +1903,355 @@ class TGHomeApp:
                 "protocol": proto,
                 "params": params
             }
-            frame1.pack_forget()
-            show_type_selection()
+            update_steps(1)
+            main_stack.setCurrentIndex(1)
 
-        tb.Button(frame1, text="下一步", command=next_step, bootstyle="primary").grid(row=3, column=0, columnspan=2, pady=10)
+        next_btn = _make_btn("下一步", "primary", next_step)
+        next_btn.setFixedHeight(40)
+        f1_layout.addWidget(next_btn)
+        f1_layout.addStretch()
 
-        def show_type_selection():
-            frame2 = tb.Frame(wizard, padding=10)
-            frame2.pack(fill=BOTH, expand=True)
-            tb.Label(frame2, text="选择设备类型:", font=("微软雅黑", 11, "bold")).pack(anchor=W, pady=5)
-            type_var = tk.StringVar(value="bool")
-            tb.Radiobutton(frame2, text="布尔类 (开关)", variable=type_var, value="bool",
-                           bootstyle="primary").pack(anchor=W, pady=2)
-            tb.Radiobutton(frame2, text="复杂类 (多指令)", variable=type_var, value="complex",
-                           bootstyle="primary").pack(anchor=W, pady=2)
+        main_stack.addWidget(frame1)
 
-            def next_type():
-                dev_type = type_var.get()
-                if dev_type == "bool":
-                    show_bool_config()
-                else:
-                    show_complex_config()
-                frame2.pack_forget()
+        # ── 第2页：设备类型选择 ──
+        frame2 = QWidget()
+        f2_layout = QVBoxLayout(frame2)
+        f2_layout.setContentsMargins(24, 20, 24, 20)
+        f2_layout.setSpacing(12)
 
-            tb.Button(frame2, text="下一步", command=next_type, bootstyle="primary").pack(pady=10)
+        title2 = QLabel("选择设备类型")
+        title2_font = QFont()
+        title2_font.setBold(True)
+        title2_font.setPointSize(16)
+        title2.setFont(title2_font)
+        f2_layout.addWidget(title2)
+        f2_layout.addSpacing(8)
 
-        def show_bool_config():
-            frame3 = tb.Frame(wizard, padding=10)
-            frame3.pack(fill=BOTH, expand=True)
-            tb.Label(frame3, text="ON指令内容:").grid(row=0, column=0, sticky=W, pady=5)
-            on_entry = tb.Entry(frame3, width=30)
-            on_entry.grid(row=0, column=1, sticky=EW, pady=5)
-            tb.Label(frame3, text="OFF指令内容:").grid(row=1, column=0, sticky=W, pady=5)
-            off_entry = tb.Entry(frame3, width=30)
-            off_entry.grid(row=1, column=1, sticky=EW, pady=5)
+        type_group = QButtonGroup(self)
+        bool_radio = QRadioButton("布尔类 (开关)")
+        complex_radio = QRadioButton("复杂类 (多指令)")
+        bool_radio.setChecked(True)
+        type_group.addButton(bool_radio, 0)
+        type_group.addButton(complex_radio, 1)
+        f2_layout.addWidget(bool_radio)
+        f2_layout.addWidget(complex_radio)
+        f2_layout.addSpacing(16)
 
-            def finish():
-                data = wizard.temp_data
-                data["device_type"] = "bool"
-                data["on_msg"] = on_entry.get().strip() or "ON"
-                data["off_msg"] = off_entry.get().strip() or "OFF"
-                data["presets"] = []
-                data["notes"] = ""
-                data["icon"] = ""
-                if iot_manager.add_device(data):
-                    messagebox.showinfo("成功", f"设备 {data['name']} 已添加")
-                    wizard.destroy()
-                    self._refresh_devices()
-                else:
-                    messagebox.showerror("错误", "设备名称已存在")
-            tb.Button(frame3, text="完成", command=finish, bootstyle="success").grid(row=2, column=0, columnspan=2, pady=10)
+        def next_type():
+            dev_type = "bool" if bool_radio.isChecked() else "complex"
+            wizard.temp_data["device_type"] = dev_type
+            build_page3(dev_type)
+            update_steps(2)
+            main_stack.setCurrentIndex(2)
 
-        def show_complex_config():
-            frame3 = tb.Frame(wizard, padding=10)
-            frame3.pack(fill=BOTH, expand=True)
+        btn_row2 = QWidget()
+        btn_row2_layout = QHBoxLayout(btn_row2)
+        btn_row2_layout.setContentsMargins(0, 0, 0, 0)
+        btn_row2_layout.setSpacing(10)
+        back_btn2 = _make_btn("返回", "secondary-outline", lambda: (update_steps(0), main_stack.setCurrentIndex(0)))
+        back_btn2.setFixedHeight(40)
+        next_btn2 = _make_btn("下一步", "primary", next_type)
+        next_btn2.setFixedHeight(40)
+        btn_row2_layout.addWidget(back_btn2)
+        btn_row2_layout.addWidget(next_btn2)
+        f2_layout.addWidget(btn_row2)
+        f2_layout.addStretch()
+        main_stack.addWidget(frame2)
 
-            tb.Label(frame3, text="预设指令列表:", font=("微软雅黑", 10, "bold")).pack(anchor=W, pady=5)
-            preset_listbox = tk.Listbox(frame3, height=5, bg=self.style.colors.bg, fg=self.style.colors.fg)
-            preset_listbox.pack(fill=BOTH, expand=True, pady=5)
+        # ── 第3页：布尔/复杂配置 ──
+        frame3_container = QWidget()
+        f3_container_layout = QVBoxLayout(frame3_container)
+        f3_container_layout.setContentsMargins(0, 0, 0, 0)
+        main_stack.addWidget(frame3_container)
 
-            presets = []
+        def build_page3(dev_type):
+            for i in reversed(range(f3_container_layout.count())):
+                w = f3_container_layout.takeAt(i).widget()
+                if w:
+                    w.deleteLater()
 
-            def add_preset():
-                add_win = tb.Toplevel(wizard)
-                add_win.title("添加预设指令")
-                add_win.geometry("400x250")
-                add_win.transient(wizard)
-                add_win.grab_set()
-                tb.Label(add_win, text="指令名称:").pack(pady=5)
-                name_entry = tb.Entry(add_win, width=30)
-                name_entry.pack()
-                tb.Label(add_win, text="指令内容:").pack(pady=5)
-                msg_entry = tb.Entry(add_win, width=30)
-                msg_entry.pack()
-                def save():
-                    name = name_entry.get().strip()
-                    msg = msg_entry.get().strip()
-                    if name and msg:
-                        presets.append({"name": name, "msg": msg})
-                        preset_listbox.insert(tk.END, f"{name} -> {msg}")
-                        add_win.destroy()
-                tb.Button(add_win, text="保存", command=save, bootstyle="success").pack(pady=10)
+            frame3 = QWidget()
+            f3_layout = QVBoxLayout(frame3)
+            f3_layout.setContentsMargins(24, 20, 24, 20)
+            f3_layout.setSpacing(12)
 
-            tb.Button(frame3, text="➕ 添加指令", command=add_preset, bootstyle="success-outline").pack(anchor=W, pady=2)
+            title3 = QLabel("详细配置")
+            title3_font = QFont()
+            title3_font.setBold(True)
+            title3_font.setPointSize(16)
+            title3.setFont(title3_font)
+            f3_layout.addWidget(title3)
+            f3_layout.addSpacing(8)
 
-            tb.Label(frame3, text="给AI的注意事项（可选）:").pack(anchor=W, pady=(10,0))
-            notes_text = tk.Text(frame3, height=4, bg=self.style.colors.bg, fg=self.style.colors.fg)
-            notes_text.pack(fill=X, pady=5)
+            f3_container_layout.addWidget(frame3)
 
-            def finish():
-                data = wizard.temp_data
-                data["device_type"] = "complex"
-                data["presets"] = presets
-                data["notes"] = notes_text.get("1.0", tk.END).strip()
-                data["icon"] = ""
-                if iot_manager.add_device(data):
-                    messagebox.showinfo("成功", f"设备 {data['name']} 已添加")
-                    wizard.destroy()
-                    self._refresh_devices()
-                else:
-                    messagebox.showerror("错误", "设备名称已存在")
-            tb.Button(frame3, text="完成", command=finish, bootstyle="success").pack(pady=10)
+            if dev_type == "bool":
+                r1 = QWidget()
+                r1l = QHBoxLayout(r1)
+                r1l.setContentsMargins(0, 0, 0, 0)
+                r1l.addWidget(QLabel("ON指令内容:"))
+                on_entry = QLineEdit()
+                r1l.addWidget(on_entry)
+                f3_layout.addWidget(r1)
+
+                r2 = QWidget()
+                r2l = QHBoxLayout(r2)
+                r2l.setContentsMargins(0, 0, 0, 0)
+                r2l.addWidget(QLabel("OFF指令内容:"))
+                off_entry = QLineEdit()
+                r2l.addWidget(off_entry)
+                f3_layout.addWidget(r2)
+
+                def finish():
+                    data = wizard.temp_data
+                    data["device_type"] = "bool"
+                    data["on_msg"] = on_entry.text().strip() or "ON"
+                    data["off_msg"] = off_entry.text().strip() or "OFF"
+                    data["presets"] = []
+                    data["notes"] = ""
+                    data["icon"] = ""
+                    if iot_manager.add_device(data):
+                        QMessageBox.information(wizard, "成功", f"设备 {data['name']} 已添加")
+                        wizard.accept()
+                        self._refresh_devices()
+                    else:
+                        QMessageBox.critical(wizard, "错误", "设备名称已存在")
+
+                btn_row3 = QWidget()
+                btn_row3_layout = QHBoxLayout(btn_row3)
+                btn_row3_layout.setContentsMargins(0, 0, 0, 0)
+                btn_row3_layout.setSpacing(10)
+                back_btn3 = _make_btn("返回", "secondary-outline", lambda: (update_steps(1), main_stack.setCurrentIndex(1)))
+                back_btn3.setFixedHeight(40)
+                finish_btn = _make_btn("完成", "success", finish)
+                finish_btn.setFixedHeight(40)
+                btn_row3_layout.addWidget(back_btn3)
+                btn_row3_layout.addWidget(finish_btn)
+                f3_layout.addWidget(btn_row3)
+            else:
+                QLabel("预设指令列表:").setStyleSheet("font-weight: bold;")
+                f3_layout.addWidget(QLabel("预设指令列表:"))
+
+                preset_list = QListWidget()
+                preset_list.setMaximumHeight(140)
+                f3_layout.addWidget(preset_list)
+
+                presets = []
+
+                def add_preset():
+                    add_win = QDialog(wizard)
+                    add_win.setWindowTitle("添加预设指令")
+                    add_win.resize(450, 280)
+                    add_win.setWindowModality(Qt.WindowModality.WindowModal)
+                    aw_layout = QVBoxLayout(add_win)
+                    aw_layout.setContentsMargins(20, 20, 20, 20)
+                    aw_layout.setSpacing(12)
+
+                    aw_layout.addWidget(QLabel("指令名称:"))
+                    name_entry_d = QLineEdit()
+                    aw_layout.addWidget(name_entry_d)
+                    aw_layout.addWidget(QLabel("指令内容:"))
+                    msg_entry_d = QLineEdit()
+                    aw_layout.addWidget(msg_entry_d)
+                    aw_layout.addStretch()
+
+                    def save():
+                        pname = name_entry_d.text().strip()
+                        pmsg = msg_entry_d.text().strip()
+                        if pname and pmsg:
+                            presets.append({"name": pname, "msg": pmsg})
+                            preset_list.addItem(f"{pname} -> {pmsg}")
+                            add_win.accept()
+
+                    aw_layout.addWidget(_make_btn("保存", "success", save))
+                    add_win.exec()
+
+                f3_layout.addWidget(_make_btn("➕ 添加指令", "success-outline", add_preset))
+
+                f3_layout.addWidget(QLabel("给AI的注意事项（可选）:"))
+                notes_text = QTextEdit()
+                notes_text.setMaximumHeight(100)
+                f3_layout.addWidget(notes_text)
+
+                def finish():
+                    data = wizard.temp_data
+                    data["device_type"] = "complex"
+                    data["presets"] = presets
+                    data["notes"] = notes_text.toPlainText().strip()
+                    data["icon"] = ""
+                    if iot_manager.add_device(data):
+                        QMessageBox.information(wizard, "成功", f"设备 {data['name']} 已添加")
+                        wizard.accept()
+                        self._refresh_devices()
+                    else:
+                        QMessageBox.critical(wizard, "错误", "设备名称已存在")
+
+                btn_row3 = QWidget()
+                btn_row3_layout = QHBoxLayout(btn_row3)
+                btn_row3_layout.setContentsMargins(0, 0, 0, 0)
+                btn_row3_layout.setSpacing(10)
+                back_btn3 = _make_btn("返回", "secondary-outline", lambda: (update_steps(1), main_stack.setCurrentIndex(1)))
+                back_btn3.setFixedHeight(40)
+                finish_btn = _make_btn("完成", "success", finish)
+                finish_btn.setFixedHeight(40)
+                btn_row3_layout.addWidget(back_btn3)
+                btn_row3_layout.addWidget(finish_btn)
+                f3_layout.addWidget(btn_row3)
+
+            f3_layout.addStretch()
+
+        update_steps(0)
+        wizard.exec()
 
     # -------------------- 添加传感器向导 --------------------
     def add_sensor_wizard(self):
-        wizard = tb.Toplevel(self.root)
-        wizard.title("添加传感器")
-        wizard.geometry("500x500")
-        wizard.transient(self.root)
-        wizard.grab_set()
+        wizard = QDialog(self)
+        wizard.setWindowTitle("添加传感器")
+        wizard.resize(550, 550)
+        wizard.setWindowModality(Qt.WindowModality.WindowModal)
 
-        frame = tb.Frame(wizard, padding=10)
-        frame.pack(fill=BOTH, expand=True)
+        frame = QWidget()
+        wizard_layout = QVBoxLayout(wizard)
+        wizard_layout.setContentsMargins(0, 0, 0, 0)
+        wizard_layout.addWidget(frame)
 
-        tb.Label(frame, text="传感器名称:").grid(row=0, column=0, sticky=W, pady=5)
-        name_entry = tb.Entry(frame, width=30)
-        name_entry.grid(row=0, column=1, sticky=EW, pady=5)
+        f_layout = QVBoxLayout(frame)
+        f_layout.setContentsMargins(24, 20, 24, 20)
+        f_layout.setSpacing(12)
 
-        tb.Label(frame, text="协议:").grid(row=1, column=0, sticky=W, pady=5)
-        proto_var = tk.StringVar(value="udp")
-        proto_combo = tb.Combobox(frame, textvariable=proto_var, values=["udp", "tcp", "mqtt"],
-                                   state="readonly")
-        proto_combo.grid(row=1, column=1, sticky=EW, pady=5)
+        title = QLabel("添加传感器")
+        title_font = QFont()
+        title_font.setBold(True)
+        title_font.setPointSize(16)
+        title.setFont(title_font)
+        f_layout.addWidget(title)
+        f_layout.addSpacing(8)
 
-        params_frame = ttk.LabelFrame(frame, text="通信参数", padding=5)
-        params_frame.grid(row=2, column=0, columnspan=2, sticky=EW, pady=10)
+        r0 = QWidget()
+        r0l = QHBoxLayout(r0)
+        r0l.setContentsMargins(0, 0, 0, 0)
+        r0l.addWidget(QLabel("传感器名称:"))
+        name_entry = QLineEdit()
+        r0l.addWidget(name_entry)
+        f_layout.addWidget(r0)
+
+        r1 = QWidget()
+        r1l = QHBoxLayout(r1)
+        r1l.setContentsMargins(0, 0, 0, 0)
+        r1l.addWidget(QLabel("协议:"))
+        proto_combo = QComboBox()
+        proto_combo.addItems(["udp", "tcp", "mqtt"])
+        proto_combo.setEditable(False)
+        r1l.addWidget(proto_combo)
+        f_layout.addWidget(r1)
+
+        params_group = QFrame()
+        params_group.setProperty("cssClass", "group-frame")
+        params_group.setStyleSheet("")
+        pg_layout = QVBoxLayout(params_group)
+        pg_layout.setContentsMargins(16, 16, 16, 16)
+
+        plabel = QLabel("通信参数")
+        pl_font = QFont()
+        pl_font.setBold(True)
+        plabel.setFont(pl_font)
+        pg_layout.addWidget(plabel)
+        pg_layout.addSpacing(8)
+
+        params_content = QWidget()
+        params_content_layout = QVBoxLayout(params_content)
+        params_content_layout.setContentsMargins(0, 0, 0, 0)
+        params_content_layout.setSpacing(8)
+        pg_layout.addWidget(params_content)
+
+        f_layout.addWidget(params_group)
 
         dynamic_widgets = {}
 
-        def update_params(*args):
-            for widget in params_frame.winfo_children():
-                widget.destroy()
+        def update_params():
+            for i in reversed(range(params_content_layout.count())):
+                w = params_content_layout.takeAt(i).widget()
+                if w:
+                    w.deleteLater()
             dynamic_widgets.clear()
-            proto = proto_var.get()
-            if proto == "udp":
-                tb.Label(params_frame, text="监听IP (0.0.0.0):").grid(row=0, column=0, sticky=W, pady=2)
-                ip_entry = tb.Entry(params_frame)
-                ip_entry.grid(row=0, column=1, sticky=EW, pady=2)
-                tb.Label(params_frame, text="端口:").grid(row=1, column=0, sticky=W, pady=2)
-                port_entry = tb.Entry(params_frame)
-                port_entry.grid(row=1, column=1, sticky=EW, pady=2)
-                dynamic_widgets['ip'] = ip_entry
-                dynamic_widgets['port'] = port_entry
-            elif proto == "tcp":
-                tb.Label(params_frame, text="监听IP (0.0.0.0):").grid(row=0, column=0, sticky=W, pady=2)
-                ip_entry = tb.Entry(params_frame)
-                ip_entry.grid(row=0, column=1, sticky=EW, pady=2)
-                tb.Label(params_frame, text="端口:").grid(row=1, column=0, sticky=W, pady=2)
-                port_entry = tb.Entry(params_frame)
-                port_entry.grid(row=1, column=1, sticky=EW, pady=2)
+            proto = proto_combo.currentText()
+            if proto in ("udp", "tcp"):
+                rw1 = QWidget()
+                rl1 = QHBoxLayout(rw1)
+                rl1.setContentsMargins(0, 0, 0, 0)
+                rl1.addWidget(QLabel("监听IP (0.0.0.0):"))
+                ip_entry = QLineEdit()
+                rl1.addWidget(ip_entry)
+                params_content_layout.addWidget(rw1)
+                rw2 = QWidget()
+                rl2 = QHBoxLayout(rw2)
+                rl2.setContentsMargins(0, 0, 0, 0)
+                rl2.addWidget(QLabel("端口:"))
+                port_entry = QLineEdit()
+                rl2.addWidget(port_entry)
+                params_content_layout.addWidget(rw2)
                 dynamic_widgets['ip'] = ip_entry
                 dynamic_widgets['port'] = port_entry
             elif proto == "mqtt":
-                tb.Label(params_frame, text="Broker地址:").grid(row=0, column=0, sticky=W, pady=2)
-                broker_entry = tb.Entry(params_frame)
-                broker_entry.grid(row=0, column=1, sticky=EW, pady=2)
-                tb.Label(params_frame, text="端口:").grid(row=1, column=0, sticky=W, pady=2)
-                port_entry = tb.Entry(params_frame)
-                port_entry.grid(row=1, column=1, sticky=EW, pady=2)
-                tb.Label(params_frame, text="Topic:").grid(row=2, column=0, sticky=W, pady=2)
-                topic_entry = tb.Entry(params_frame)
-                topic_entry.grid(row=2, column=1, sticky=EW, pady=2)
-                tb.Label(params_frame, text="用户名(可选):").grid(row=3, column=0, sticky=W, pady=2)
-                user_entry = tb.Entry(params_frame)
-                user_entry.grid(row=3, column=1, sticky=EW, pady=2)
-                tb.Label(params_frame, text="密码(可选):").grid(row=4, column=0, sticky=W, pady=2)
-                pass_entry = tb.Entry(params_frame, show="*")
-                pass_entry.grid(row=4, column=1, sticky=EW, pady=2)
-                tb.Label(params_frame, text="Client ID (私钥):").grid(row=5, column=0, sticky=W, pady=2)
-                client_id_entry = tb.Entry(params_frame)
-                client_id_entry.grid(row=5, column=1, sticky=EW, pady=2)
-                dynamic_widgets['client_id'] = client_id_entry
-                dynamic_widgets['broker'] = broker_entry
-                dynamic_widgets['port'] = port_entry
-                dynamic_widgets['topic'] = topic_entry
-                dynamic_widgets['username'] = user_entry
-                dynamic_widgets['password'] = pass_entry
+                fields = [
+                    ("Broker地址:", "broker"),
+                    ("端口:", "port"),
+                    ("Topic:", "topic"),
+                    ("用户名(可选):", "username"),
+                    ("密码(可选):", "password"),
+                    ("Client ID (私钥):", "client_id"),
+                ]
+                for label_text, key in fields:
+                    rw = QWidget()
+                    rl = QHBoxLayout(rw)
+                    rl.setContentsMargins(0, 0, 0, 0)
+                    rl.addWidget(QLabel(label_text))
+                    entry = QLineEdit()
+                    if key == "password":
+                        entry.setEchoMode(QLineEdit.EchoMode.Password)
+                    rl.addWidget(entry)
+                    params_content_layout.addWidget(rw)
+                    dynamic_widgets[key] = entry
 
-        proto_var.trace_add('write', update_params)
+        proto_combo.currentTextChanged.connect(update_params)
         update_params()
 
         def finish():
-            name = name_entry.get().strip()
+            name = name_entry.text().strip()
             if not name:
-                messagebox.showerror("错误", "请输入传感器名称")
+                QMessageBox.critical(wizard, "错误", "请输入传感器名称")
                 return
-            proto = proto_var.get()
+            proto = proto_combo.currentText()
             params = {}
             try:
                 if proto in ("udp", "tcp"):
-                    ip = dynamic_widgets['ip'].get().strip() or "0.0.0.0"
+                    ip = dynamic_widgets['ip'].text().strip() or "0.0.0.0"
                     if ip == '255.255.255.255':
-                        if not messagebox.askyesno("提示", "广播地址不能监听，是否改为 0.0.0.0？"):
+                        reply = QMessageBox.question(wizard, "提示",
+                                                     "广播地址不能监听，是否改为 0.0.0.0？",
+                                                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+                        if reply != QMessageBox.StandardButton.Yes:
                             return
                         ip = '0.0.0.0'
-                    port = int(dynamic_widgets['port'].get().strip())
+                    port = int(dynamic_widgets['port'].text().strip())
                     params = {"ip": ip, "port": port}
                 elif proto == "mqtt":
-                    broker = dynamic_widgets['broker'].get().strip()
-                    port = int(dynamic_widgets['port'].get().strip())
-                    topic = dynamic_widgets['topic'].get().strip()
+                    broker = dynamic_widgets['broker'].text().strip()
+                    port = int(dynamic_widgets['port'].text().strip())
+                    topic = dynamic_widgets['topic'].text().strip()
                     if not broker or not topic:
-                        messagebox.showerror("错误", "请填写 Broker 和 Topic")
+                        QMessageBox.critical(wizard, "错误", "请填写 Broker 和 Topic")
                         return
                     params = {
                         "broker": broker,
                         "port": port,
                         "topic": topic,
-                        "username": dynamic_widgets.get('username', tb.Entry()).get(),
-                        "password": dynamic_widgets.get('password', tb.Entry()).get(),
-                        "client_id": dynamic_widgets.get('client_id', tb.Entry()).get().strip()
+                        "username": dynamic_widgets.get('username', QLineEdit()).text(),
+                        "password": dynamic_widgets.get('password', QLineEdit()).text(),
+                        "client_id": dynamic_widgets.get('client_id', QLineEdit()).text().strip()
                     }
             except ValueError:
-                messagebox.showerror("错误", "端口必须为数字")
+                QMessageBox.critical(wizard, "错误", "端口必须为数字")
                 return
             data = {
                 "name": name,
@@ -746,43 +2260,73 @@ class TGHomeApp:
                 "icon": ""
             }
             if iot_manager.add_sensor(data):
-                messagebox.showinfo("成功", f"传感器 {name} 已添加")
-                wizard.destroy()
+                QMessageBox.information(wizard, "成功", f"传感器 {name} 已添加")
+                wizard.accept()
                 self._refresh_sensors()
             else:
-                messagebox.showerror("错误", "传感器名称已存在")
+                QMessageBox.critical(wizard, "错误", "传感器名称已存在")
 
-        tb.Button(frame, text="完成", command=finish, bootstyle="success").grid(row=3, column=0, columnspan=2, pady=10)
+        f_layout.addWidget(_make_btn("完成", "success", finish))
+        f_layout.addStretch()
+
+        wizard.exec()
 
     # -------------------- 添加触发器向导 --------------------
     def add_trigger_wizard(self):
-        win = tb.Toplevel(self.root)
-        win.title("添加触发器")
-        win.geometry("801x309")
-        win.transient(self.root)
-        win.grab_set()
+        win = QDialog(self)
+        win.setWindowTitle("添加触发器")
+        win.resize(600, 400)
+        win.setWindowModality(Qt.WindowModality.WindowModal)
 
-        frame = tb.Frame(win, padding=10)
-        frame.pack(fill=BOTH, expand=True)
+        frame = QWidget()
+        win_layout = QVBoxLayout(win)
+        win_layout.setContentsMargins(0, 0, 0, 0)
+        win_layout.addWidget(frame)
 
-        tb.Label(frame, text="触发器名称:").grid(row=0, column=0, sticky=W, pady=5)
-        name_entry = tb.Entry(frame, width=30)
-        name_entry.grid(row=0, column=1, sticky=EW, pady=5)
+        f_layout = QVBoxLayout(frame)
+        f_layout.setContentsMargins(24, 20, 24, 20)
+        f_layout.setSpacing(12)
 
-        tb.Label(frame, text="传感器:").grid(row=1, column=0, sticky=W, pady=5)
-        sensor_combo = tb.Combobox(frame, values=list(iot_manager.sensors.keys()), state="readonly")
-        sensor_combo.grid(row=1, column=1, sticky=EW, pady=5)
+        title = QLabel("添加触发器")
+        title_font = QFont()
+        title_font.setBold(True)
+        title_font.setPointSize(16)
+        title.setFont(title_font)
+        f_layout.addWidget(title)
+        f_layout.addSpacing(8)
 
-        tb.Label(frame, text="匹配模式(包含此字符串即触发，留空则任何消息):").grid(row=2, column=0, sticky=W, pady=5)
-        pattern_entry = tb.Entry(frame, width=30)
-        pattern_entry.grid(row=2, column=1, sticky=EW, pady=5)
+        r0 = QWidget()
+        r0l = QHBoxLayout(r0)
+        r0l.setContentsMargins(0, 0, 0, 0)
+        r0l.addWidget(QLabel("触发器名称:"))
+        name_entry = QLineEdit()
+        r0l.addWidget(name_entry)
+        f_layout.addWidget(r0)
+
+        r1 = QWidget()
+        r1l = QHBoxLayout(r1)
+        r1l.setContentsMargins(0, 0, 0, 0)
+        r1l.addWidget(QLabel("传感器:"))
+        sensor_combo = QComboBox()
+        sensor_combo.addItems(list(iot_manager.sensors.keys()))
+        sensor_combo.setEditable(False)
+        r1l.addWidget(sensor_combo)
+        f_layout.addWidget(r1)
+
+        r2 = QWidget()
+        r2l = QHBoxLayout(r2)
+        r2l.setContentsMargins(0, 0, 0, 0)
+        r2l.addWidget(QLabel("匹配模式(包含此字符串即触发，留空则任何消息):"))
+        pattern_entry = QLineEdit()
+        r2l.addWidget(pattern_entry)
+        f_layout.addWidget(r2)
 
         def create_and_edit():
-            name = name_entry.get().strip()
-            sensor = sensor_combo.get()
-            pattern = pattern_entry.get().strip()
+            name = name_entry.text().strip()
+            sensor = sensor_combo.currentText()
+            pattern = pattern_entry.text().strip()
             if not name or not sensor:
-                messagebox.showerror("错误", "请填写触发器名称和传感器")
+                QMessageBox.critical(win, "错误", "请填写触发器名称和传感器")
                 return
             data = {
                 "name": name,
@@ -794,279 +2338,255 @@ class TGHomeApp:
             if iot_manager.add_trigger(data):
                 trigger = iot_manager.triggers.get(name)
                 if trigger:
-                    win.destroy()
+                    win.accept()
                     self._edit_trigger_tasks(trigger)
                 else:
-                    messagebox.showerror("错误", "触发器创建失败")
-                    win.destroy()
+                    QMessageBox.critical(win, "错误", "触发器创建失败")
+                    win.reject()
             else:
-                messagebox.showerror("错误", "触发器名称已存在")
+                QMessageBox.critical(win, "错误", "触发器名称已存在")
 
-        tb.Button(frame, text="创建并编辑任务", command=create_and_edit, bootstyle="success").grid(row=3, column=0, columnspan=2, pady=20)
+        f_layout.addWidget(_make_btn("创建并编辑任务", "success", create_and_edit))
+        f_layout.addStretch()
+
+        win.exec()
 
     # -------------------- 触发器任务编辑 --------------------
     def _edit_trigger_tasks(self, trigger):
-        win = tb.Toplevel(self.root)
-        win.title(f"编辑触发器任务 - {trigger.name}")
-        win.geometry("832x546")
-        win.minsize(500, 500)
-        win.transient(self.root)
+        win = QDialog(self)
+        win.setWindowTitle(f"编辑触发器任务 - {trigger.name}")
+        win.resize(900, 600)
+        win.setMinimumSize(600, 500)
+        win.setWindowModality(Qt.WindowModality.WindowModal)
 
-        main_frame = tb.Frame(win)
-        main_frame.pack(fill=BOTH, expand=True)
+        main_layout = QVBoxLayout(win)
+        main_layout.setContentsMargins(20, 20, 20, 20)
+        main_layout.setSpacing(12)
 
-        # 可滚动区域
-        canvas = tk.Canvas(main_frame, highlightthickness=0)
-        scrollbar = ttk.Scrollbar(main_frame, orient=VERTICAL, command=canvas.yview)
-        canvas.configure(yscrollcommand=scrollbar.set)
-        scrollbar.pack(side=RIGHT, fill=Y)
-        canvas.pack(side=LEFT, fill=BOTH, expand=True)
+        title = QLabel(f"触发器: {trigger.name}")
+        title_font = QFont()
+        title_font.setBold(True)
+        title_font.setPointSize(16)
+        title.setFont(title_font)
+        main_layout.addWidget(title)
+        main_layout.addSpacing(4)
 
-        scrollable_frame = tb.Frame(canvas)
-        canvas_window = canvas.create_window((0, 0), window=scrollable_frame, anchor=NW)
-
-        def on_frame_configure(event):
-            canvas.configure(scrollregion=canvas.bbox("all"))
-        scrollable_frame.bind("<Configure>", on_frame_configure)
-
-        def on_canvas_configure(event):
-            canvas.itemconfig(canvas_window, width=event.width)
-        canvas.bind("<Configure>", on_canvas_configure)
-
-        # 任务列表
-        listbox = tk.Listbox(scrollable_frame, height=10)
-        listbox.pack(fill=BOTH, expand=True, pady=5)
+        listbox = QListWidget()
+        listbox.setMinimumHeight(200)
+        main_layout.addWidget(listbox)
 
         def refresh_list():
-            listbox.delete(0, tk.END)
+            listbox.clear()
             for task in trigger.tasks:
-                listbox.insert(tk.END, self._task_desc(task))
+                listbox.addItem(self._task_desc(task))
 
         refresh_list()
 
-        # 按钮区域（放在 scrollable_frame 内）
-        btn_frame_inner = tb.Frame(scrollable_frame)
-        btn_frame_inner.pack(fill=X, pady=5)
+        btn_row = QWidget()
+        btn_row_layout = QHBoxLayout(btn_row)
+        btn_row_layout.setContentsMargins(0, 0, 0, 0)
+        btn_row_layout.setSpacing(8)
 
         def add_task():
             self._add_task_dialog(trigger, refresh_list)
 
         def edit_task():
-            sel = listbox.curselection()
-            if sel:
-                self._edit_task_dialog(trigger, sel[0], refresh_list)
+            row = listbox.currentRow()
+            if row >= 0:
+                self._edit_task_dialog(trigger, row, refresh_list)
 
         def delete_task():
-            sel = listbox.curselection()
-            if sel:
-                trigger.tasks.pop(sel[0])
+            row = listbox.currentRow()
+            if row >= 0:
+                trigger.tasks.pop(row)
                 iot_manager._save_triggers()
                 refresh_list()
                 self._refresh_triggers()
 
         def move_up():
-            sel = listbox.curselection()
-            if sel and sel[0] > 0:
-                idx = sel[0]
-                trigger.tasks[idx], trigger.tasks[idx-1] = trigger.tasks[idx-1], trigger.tasks[idx]
+            row = listbox.currentRow()
+            if row > 0:
+                trigger.tasks[row], trigger.tasks[row-1] = trigger.tasks[row-1], trigger.tasks[row]
                 iot_manager._save_triggers()
                 refresh_list()
-                listbox.selection_set(idx-1)
+                listbox.setCurrentRow(row - 1)
                 self._refresh_triggers()
 
         def move_down():
-            sel = listbox.curselection()
-            if sel and sel[0] < len(trigger.tasks)-1:
-                idx = sel[0]
-                trigger.tasks[idx], trigger.tasks[idx+1] = trigger.tasks[idx+1], trigger.tasks[idx]
+            row = listbox.currentRow()
+            if row >= 0 and row < len(trigger.tasks) - 1:
+                trigger.tasks[row], trigger.tasks[row+1] = trigger.tasks[row+1], trigger.tasks[row]
                 iot_manager._save_triggers()
                 refresh_list()
-                listbox.selection_set(idx+1)
+                listbox.setCurrentRow(row + 1)
                 self._refresh_triggers()
 
-        tb.Button(btn_frame_inner, text="➕ 添加", command=add_task, bootstyle="success-outline").pack(side=LEFT, padx=2)
-        tb.Button(btn_frame_inner, text="✏️ 编辑", command=edit_task, bootstyle="primary-outline").pack(side=LEFT, padx=2)
-        tb.Button(btn_frame_inner, text="❌ 删除", command=delete_task, bootstyle="danger-outline").pack(side=LEFT, padx=2)
-        tb.Button(btn_frame_inner, text="⬆ 上移", command=move_up, bootstyle="secondary-outline").pack(side=LEFT, padx=2)
-        tb.Button(btn_frame_inner, text="⬇ 下移", command=move_down, bootstyle="secondary-outline").pack(side=LEFT, padx=2)
+        btn_row_layout.addWidget(_make_btn("➕ 添加", "success-outline", add_task))
+        btn_row_layout.addWidget(_make_btn("✏️ 编辑", "primary-outline", edit_task))
+        btn_row_layout.addWidget(_make_btn("❌ 删除", "danger-outline", delete_task))
+        btn_row_layout.addWidget(_make_btn("⬆ 上移", "secondary-outline", move_up))
+        btn_row_layout.addWidget(_make_btn("⬇ 下移", "secondary-outline", move_down))
+        btn_row_layout.addStretch()
 
-        # 底部固定按钮
-        bottom_btn_frame = tb.Frame(main_frame)
-        bottom_btn_frame.pack(side=BOTTOM, fill=X, pady=10, padx=10)
+        main_layout.addWidget(btn_row)
+
+        bottom_row = QWidget()
+        bottom_row_layout = QHBoxLayout(bottom_row)
+        bottom_row_layout.setContentsMargins(0, 0, 0, 0)
+        bottom_row_layout.addStretch()
 
         def save_and_close():
-            # 所有修改已实时保存，这里仅刷新并关闭
             self._refresh_triggers()
-            win.destroy()
+            win.accept()
 
-        tb.Button(bottom_btn_frame, text="保存并关闭", command=save_and_close, bootstyle="success").pack(side=RIGHT, padx=5)
-        tb.Button(bottom_btn_frame, text="取消", command=win.destroy, bootstyle="secondary").pack(side=RIGHT, padx=5)
+        bottom_row_layout.addWidget(_make_btn("取消", "secondary-outline", win.reject))
+        bottom_row_layout.addWidget(_make_btn("保存并关闭", "success", save_and_close))
 
+        main_layout.addWidget(bottom_row)
+
+        win.exec()
 
     def _add_task_dialog(self, trigger, refresh_cb):
-        win = tb.Toplevel(self.root)
-        win.title("添加任务")
-        win.geometry("826x546")
-        win.minsize(450, 500)
-        win.transient(self.root)
+        win = QDialog(self)
+        win.setWindowTitle("添加任务")
+        win.resize(550, 500)
+        win.setMinimumSize(450, 400)
+        win.setWindowModality(Qt.WindowModality.WindowModal)
 
-        main_frame = tb.Frame(win)
-        main_frame.pack(fill=BOTH, expand=True)
+        main_layout = QVBoxLayout(win)
+        main_layout.setContentsMargins(20, 20, 20, 20)
+        main_layout.setSpacing(12)
 
-        # 可滚动区域
-        canvas = tk.Canvas(main_frame, highlightthickness=0)
-        scrollbar = ttk.Scrollbar(main_frame, orient=VERTICAL, command=canvas.yview)
-        canvas.configure(yscrollcommand=scrollbar.set)
-        scrollbar.pack(side=RIGHT, fill=Y)
-        canvas.pack(side=LEFT, fill=BOTH, expand=True)
-
-        scrollable_frame = tb.Frame(canvas)
-        canvas_window = canvas.create_window((0, 0), window=scrollable_frame, anchor=NW)
-
-        def on_frame_configure(event):
-            canvas.configure(scrollregion=canvas.bbox("all"))
-        scrollable_frame.bind("<Configure>", on_frame_configure)
-
-        def on_canvas_configure(event):
-            canvas.itemconfig(canvas_window, width=event.width)
-        canvas.bind("<Configure>", on_canvas_configure)
-
-        frame = scrollable_frame
-
-        # 类型映射（中文显示）
         type_display_map = {
             "🤖 通知AI": "ai_notify",
             "📟 控制设备": "control_device",
             "💬 QQ通知": "qq_notify"
         }
-        type_value_to_display = {v: k for k, v in type_display_map.items()}
 
-        task_type_var = tk.StringVar(value="ai_notify")
-        display_var = tk.StringVar(value=type_value_to_display["ai_notify"])
+        title = QLabel("添加任务")
+        title_font = QFont()
+        title_font.setBold(True)
+        title_font.setPointSize(16)
+        title.setFont(title_font)
+        main_layout.addWidget(title)
+        main_layout.addSpacing(8)
 
-        def on_type_selected(*args):
-            display = display_var.get()
-            actual = type_display_map.get(display, "ai_notify")
-            task_type_var.set(actual)
-            update_params()
+        type_label = QLabel("任务类型:")
+        main_layout.addWidget(type_label)
 
-        display_var.trace_add('write', on_type_selected)
+        type_combo = QComboBox()
+        type_combo.addItems(list(type_display_map.keys()))
+        type_combo.setEditable(False)
+        main_layout.addWidget(type_combo)
 
-        tb.Label(frame, text="任务类型:").pack(anchor=W, pady=(5,0))
-        type_combo = tb.Combobox(frame, textvariable=display_var,
-                                 values=list(type_display_map.keys()),
-                                 state="readonly")
-        type_combo.pack(fill=X, pady=5)
-
-        params_frame = tb.Frame(frame)
-        params_frame.pack(fill=BOTH, expand=True, pady=10)
+        params_stack = QStackedWidget()
+        main_layout.addWidget(params_stack)
 
         dynamic_data = {}
 
-        def update_params(*args):
-            for w in params_frame.winfo_children():
-                w.destroy()
-            dynamic_data.clear()
-            ttype = task_type_var.get()
-            if ttype == "ai_notify":
-                tb.Label(params_frame, text="发送给AI的消息（留空则发送原始传感器消息）:").pack(anchor=W)
-                prompt_entry = tb.Entry(params_frame, width=50)
-                prompt_entry.pack(fill=X, pady=5)
-                send_reply_var = tk.BooleanVar(value=False)
-                tb.Checkbutton(params_frame, text="将AI回复回传给原设备", variable=send_reply_var,
-                               bootstyle="primary").pack(anchor=W, pady=5)
-                dynamic_data["prompt"] = prompt_entry
-                dynamic_data["send_reply"] = send_reply_var
-            elif ttype == "control_device":
-                tb.Label(params_frame, text="设备名称:").pack(anchor=W)
-                dev_entry = tb.Combobox(params_frame, values=list(iot_manager.devices.keys()), state="readonly")
-                dev_entry.pack(fill=X, pady=5)
-                tb.Label(params_frame, text="指令:").pack(anchor=W)
-                cmd_entry = tb.Entry(params_frame, width=50)
-                cmd_entry.pack(fill=X, pady=5)
-                dynamic_data["device_name"] = dev_entry
-                dynamic_data["command"] = cmd_entry
-            elif ttype == "qq_notify":
-                tb.Label(params_frame, text="目标类型:").pack(anchor=W)
-                target_type_map = {"私聊": "private", "群聊": "group"}
-                target_type_var = tk.StringVar(value="private")
-                target_display_var = tk.StringVar(value="私聊")
-                def on_target_type_selected(*args):
-                    display = target_display_var.get()
-                    actual = target_type_map.get(display, "private")
-                    target_type_var.set(actual)
-                target_display_var.trace_add('write', on_target_type_selected)
-                target_combo = tb.Combobox(params_frame, textvariable=target_display_var,
-                                           values=list(target_type_map.keys()), state="readonly")
-                target_combo.pack(fill=X, pady=5)
-                tb.Label(params_frame, text="目标ID (QQ号或群号):").pack(anchor=W)
-                id_entry = tb.Entry(params_frame, width=50)
-                id_entry.pack(fill=X, pady=5)
-                tb.Label(params_frame, text="消息内容 (可用 {message} 代替原始传感器消息):").pack(anchor=W)
-                content_entry = tb.Entry(params_frame, width=50)
-                content_entry.pack(fill=X, pady=5)
-                dynamic_data["target_type"] = target_type_var
-                dynamic_data["target_id"] = id_entry
-                dynamic_data["content"] = content_entry
+        # ai_notify 页
+        ai_page = QWidget()
+        ai_layout = QVBoxLayout(ai_page)
+        ai_layout.setContentsMargins(0, 0, 0, 0)
+        ai_layout.setSpacing(8)
+        ai_layout.addWidget(QLabel("发送给AI的消息（留空则发送原始传感器消息）:"))
+        prompt_entry = QLineEdit()
+        ai_layout.addWidget(prompt_entry)
+        send_reply_check = QCheckBox("将AI回复回传给原设备")
+        ai_layout.addWidget(send_reply_check)
+        ai_layout.addStretch()
+        params_stack.addWidget(ai_page)
 
-        update_params()
+        # control_device 页
+        ctrl_page = QWidget()
+        ctrl_layout = QVBoxLayout(ctrl_page)
+        ctrl_layout.setContentsMargins(0, 0, 0, 0)
+        ctrl_layout.setSpacing(8)
+        ctrl_layout.addWidget(QLabel("设备名称:"))
+        dev_combo = QComboBox()
+        dev_combo.addItems(list(iot_manager.devices.keys()))
+        dev_combo.setEditable(False)
+        ctrl_layout.addWidget(dev_combo)
+        ctrl_layout.addWidget(QLabel("指令:"))
+        cmd_entry = QLineEdit()
+        ctrl_layout.addWidget(cmd_entry)
+        ctrl_layout.addStretch()
+        params_stack.addWidget(ctrl_page)
 
-        # 底部按钮
-        bottom_btn_frame = tb.Frame(main_frame)
-        bottom_btn_frame.pack(side=BOTTOM, fill=X, pady=10, padx=10)
+        # qq_notify 页
+        qq_page = QWidget()
+        qq_layout = QVBoxLayout(qq_page)
+        qq_layout.setContentsMargins(0, 0, 0, 0)
+        qq_layout.setSpacing(8)
+        qq_layout.addWidget(QLabel("目标类型:"))
+        target_combo = QComboBox()
+        target_combo.addItems(["私聊", "群聊"])
+        target_combo.setEditable(False)
+        qq_layout.addWidget(target_combo)
+        qq_layout.addWidget(QLabel("目标ID (QQ号或群号):"))
+        id_entry = QLineEdit()
+        qq_layout.addWidget(id_entry)
+        qq_layout.addWidget(QLabel("消息内容 (可用 {message} 代替原始传感器消息):"))
+        content_entry = QLineEdit()
+        qq_layout.addWidget(content_entry)
+        qq_layout.addStretch()
+        params_stack.addWidget(qq_page)
+
+        def on_type_changed():
+            display = type_combo.currentText()
+            actual = type_display_map.get(display, "ai_notify")
+            if actual == "ai_notify":
+                params_stack.setCurrentIndex(0)
+            elif actual == "control_device":
+                params_stack.setCurrentIndex(1)
+            elif actual == "qq_notify":
+                params_stack.setCurrentIndex(2)
+
+        type_combo.currentTextChanged.connect(on_type_changed)
+
+        bottom_row = QWidget()
+        bottom_row_layout = QHBoxLayout(bottom_row)
+        bottom_row_layout.setContentsMargins(0, 0, 0, 0)
+        bottom_row_layout.addStretch()
 
         def save():
-            display_type = display_var.get()
-            ttype = type_display_map.get(display_type, "ai_notify")
+            display = type_combo.currentText()
+            ttype = type_display_map.get(display, "ai_notify")
             task = {"type": ttype}
             if ttype == "ai_notify":
-                task["prompt"] = dynamic_data["prompt"].get().strip()
-                task["send_reply"] = dynamic_data["send_reply"].get()
+                task["prompt"] = prompt_entry.text().strip()
+                task["send_reply"] = send_reply_check.isChecked()
             elif ttype == "control_device":
-                task["device_name"] = dynamic_data["device_name"].get()
-                task["command"] = dynamic_data["command"].get().strip()
+                task["device_name"] = dev_combo.currentText()
+                task["command"] = cmd_entry.text().strip()
             elif ttype == "qq_notify":
-                task["target_type"] = dynamic_data["target_type"].get()
-                task["target_id"] = dynamic_data["target_id"].get().strip()
-                task["content"] = dynamic_data["content"].get().strip()
+                target_map = {"私聊": "private", "群聊": "group"}
+                task["target_type"] = target_map.get(target_combo.currentText(), "private")
+                task["target_id"] = id_entry.text().strip()
+                task["content"] = content_entry.text().strip()
             trigger.tasks.append(task)
             iot_manager._save_triggers()
             refresh_cb()
             self._refresh_triggers()
-            win.destroy()
+            win.accept()
 
-        tb.Button(bottom_btn_frame, text="保存并关闭", command=save, bootstyle="success").pack(side=LEFT, padx=5)
-        tb.Button(bottom_btn_frame, text="取消", command=win.destroy, bootstyle="secondary").pack(side=LEFT, padx=5)
+        bottom_row_layout.addWidget(_make_btn("取消", "secondary-outline", win.reject))
+        bottom_row_layout.addWidget(_make_btn("保存并关闭", "success", save))
+        main_layout.addWidget(bottom_row)
+
+        win.exec()
 
     def _edit_task_dialog(self, trigger, task_index, refresh_cb):
         task = trigger.tasks[task_index]
-        win = tb.Toplevel(self.root)
-        win.title("编辑任务")
-        win.geometry("832x546")
-        win.minsize(450, 500)
-        win.transient(self.root)
+        win = QDialog(self)
+        win.setWindowTitle("编辑任务")
+        win.resize(550, 500)
+        win.setMinimumSize(450, 400)
+        win.setWindowModality(Qt.WindowModality.WindowModal)
 
-        main_frame = tb.Frame(win)
-        main_frame.pack(fill=BOTH, expand=True)
-
-        canvas = tk.Canvas(main_frame, highlightthickness=0)
-        scrollbar = ttk.Scrollbar(main_frame, orient=VERTICAL, command=canvas.yview)
-        canvas.configure(yscrollcommand=scrollbar.set)
-        scrollbar.pack(side=RIGHT, fill=Y)
-        canvas.pack(side=LEFT, fill=BOTH, expand=True)
-
-        scrollable_frame = tb.Frame(canvas)
-        canvas_window = canvas.create_window((0, 0), window=scrollable_frame, anchor=NW)
-
-        def on_frame_configure(event):
-            canvas.configure(scrollregion=canvas.bbox("all"))
-        scrollable_frame.bind("<Configure>", on_frame_configure)
-
-        def on_canvas_configure(event):
-            canvas.itemconfig(canvas_window, width=event.width)
-        canvas.bind("<Configure>", on_canvas_configure)
-
-        frame = scrollable_frame
+        main_layout = QVBoxLayout(win)
+        main_layout.setContentsMargins(20, 20, 20, 20)
+        main_layout.setSpacing(12)
 
         type_display_map = {
             "🤖 通知AI": "ai_notify",
@@ -1075,143 +2595,189 @@ class TGHomeApp:
         }
         type_value_to_display = {v: k for k, v in type_display_map.items()}
 
-        task_type_var = tk.StringVar(value=task.get('type', 'ai_notify'))
-        display_var = tk.StringVar(value=type_value_to_display.get(task.get('type', 'ai_notify'), "🤖 通知AI"))
+        current_type = task.get('type', 'ai_notify')
+        current_display = type_value_to_display.get(current_type, "🤖 通知AI")
 
-        def on_type_selected(*args):
-            display = display_var.get()
+        title = QLabel("编辑任务")
+        title_font = QFont()
+        title_font.setBold(True)
+        title_font.setPointSize(16)
+        title.setFont(title_font)
+        main_layout.addWidget(title)
+        main_layout.addSpacing(8)
+
+        main_layout.addWidget(QLabel("任务类型:"))
+
+        type_combo = QComboBox()
+        type_combo.addItems(list(type_display_map.keys()))
+        type_combo.setEditable(False)
+        type_combo.setCurrentText(current_display)
+        main_layout.addWidget(type_combo)
+
+        params_stack = QStackedWidget()
+        main_layout.addWidget(params_stack)
+
+        # ai_notify 页
+        ai_page = QWidget()
+        ai_layout = QVBoxLayout(ai_page)
+        ai_layout.setContentsMargins(0, 0, 0, 0)
+        ai_layout.setSpacing(8)
+        ai_layout.addWidget(QLabel("发送给AI的消息（留空则发送原始传感器消息）:"))
+        prompt_entry = QLineEdit()
+        prompt_entry.setText(task.get('prompt', ''))
+        ai_layout.addWidget(prompt_entry)
+        send_reply_check = QCheckBox("将AI回复回传给原设备")
+        send_reply_check.setChecked(task.get('send_reply', False))
+        ai_layout.addWidget(send_reply_check)
+        ai_layout.addStretch()
+        params_stack.addWidget(ai_page)
+
+        # control_device 页
+        ctrl_page = QWidget()
+        ctrl_layout = QVBoxLayout(ctrl_page)
+        ctrl_layout.setContentsMargins(0, 0, 0, 0)
+        ctrl_layout.setSpacing(8)
+        ctrl_layout.addWidget(QLabel("设备名称:"))
+        dev_combo = QComboBox()
+        dev_combo.addItems(list(iot_manager.devices.keys()))
+        dev_combo.setEditable(False)
+        dev_combo.setCurrentText(task.get('device_name', ''))
+        ctrl_layout.addWidget(dev_combo)
+        ctrl_layout.addWidget(QLabel("指令:"))
+        cmd_entry = QLineEdit()
+        cmd_entry.setText(task.get('command', ''))
+        ctrl_layout.addWidget(cmd_entry)
+        ctrl_layout.addStretch()
+        params_stack.addWidget(ctrl_page)
+
+        # qq_notify 页
+        qq_page = QWidget()
+        qq_layout = QVBoxLayout(qq_page)
+        qq_layout.setContentsMargins(0, 0, 0, 0)
+        qq_layout.setSpacing(8)
+        qq_layout.addWidget(QLabel("目标类型:"))
+        target_combo = QComboBox()
+        target_combo.addItems(["私聊", "群聊"])
+        target_combo.setEditable(False)
+        target_display_map_qq = {"private": "私聊", "group": "群聊"}
+        target_combo.setCurrentText(target_display_map_qq.get(task.get('target_type', 'private'), "私聊"))
+        qq_layout.addWidget(target_combo)
+        qq_layout.addWidget(QLabel("目标ID (QQ号或群号):"))
+        id_entry = QLineEdit()
+        id_entry.setText(task.get('target_id', ''))
+        qq_layout.addWidget(id_entry)
+        qq_layout.addWidget(QLabel("消息内容 (可用 {message} 代替原始传感器消息):"))
+        content_entry = QLineEdit()
+        content_entry.setText(task.get('content', ''))
+        qq_layout.addWidget(content_entry)
+        qq_layout.addStretch()
+        params_stack.addWidget(qq_page)
+
+        def on_type_changed():
+            display = type_combo.currentText()
             actual = type_display_map.get(display, "ai_notify")
-            task_type_var.set(actual)
-            update_params()
+            if actual == "ai_notify":
+                params_stack.setCurrentIndex(0)
+            elif actual == "control_device":
+                params_stack.setCurrentIndex(1)
+            elif actual == "qq_notify":
+                params_stack.setCurrentIndex(2)
 
-        display_var.trace_add('write', on_type_selected)
+        type_combo.currentTextChanged.connect(on_type_changed)
 
-        tb.Label(frame, text="任务类型:").pack(anchor=W, pady=(5,0))
-        type_combo = tb.Combobox(frame, textvariable=display_var,
-                                 values=list(type_display_map.keys()),
-                                 state="readonly")
-        type_combo.pack(fill=X, pady=5)
+        # 设置初始页
+        initial_actual = type_display_map.get(current_display, "ai_notify")
+        if initial_actual == "control_device":
+            params_stack.setCurrentIndex(1)
+        elif initial_actual == "qq_notify":
+            params_stack.setCurrentIndex(2)
+        else:
+            params_stack.setCurrentIndex(0)
 
-        params_frame = tb.Frame(frame)
-        params_frame.pack(fill=BOTH, expand=True, pady=10)
-
-        dynamic_data = {}
-
-        def update_params(*args):
-            for w in params_frame.winfo_children():
-                w.destroy()
-            dynamic_data.clear()
-            ttype = task_type_var.get()
-            if ttype == "ai_notify":
-                tb.Label(params_frame, text="发送给AI的消息（留空则发送原始传感器消息）:").pack(anchor=W)
-                prompt_entry = tb.Entry(params_frame, width=50)
-                prompt_entry.insert(0, task.get('prompt', ''))
-                prompt_entry.pack(fill=X, pady=5)
-                send_reply_var = tk.BooleanVar(value=task.get('send_reply', False))
-                tb.Checkbutton(params_frame, text="将AI回复回传给原设备", variable=send_reply_var,
-                               bootstyle="primary").pack(anchor=W, pady=5)
-                dynamic_data["prompt"] = prompt_entry
-                dynamic_data["send_reply"] = send_reply_var
-            elif ttype == "control_device":
-                tb.Label(params_frame, text="设备名称:").pack(anchor=W)
-                dev_entry = tb.Combobox(params_frame, values=list(iot_manager.devices.keys()), state="readonly")
-                dev_entry.set(task.get('device_name', ''))
-                dev_entry.pack(fill=X, pady=5)
-                tb.Label(params_frame, text="指令:").pack(anchor=W)
-                cmd_entry = tb.Entry(params_frame, width=50)
-                cmd_entry.insert(0, task.get('command', ''))
-                cmd_entry.pack(fill=X, pady=5)
-                dynamic_data["device_name"] = dev_entry
-                dynamic_data["command"] = cmd_entry
-            elif ttype == "qq_notify":
-                tb.Label(params_frame, text="目标类型:").pack(anchor=W)
-                target_type_map = {"私聊": "private", "群聊": "group"}
-                target_type_var = tk.StringVar(value=task.get('target_type', 'private'))
-                target_display = {v: k for k, v in target_type_map.items()}
-                target_display_var = tk.StringVar(value=target_display.get(task.get('target_type', 'private'), "私聊"))
-                def on_target_type_selected(*args):
-                    display = target_display_var.get()
-                    actual = target_type_map.get(display, "private")
-                    target_type_var.set(actual)
-                target_display_var.trace_add('write', on_target_type_selected)
-                target_combo = tb.Combobox(params_frame, textvariable=target_display_var,
-                                           values=list(target_type_map.keys()), state="readonly")
-                target_combo.pack(fill=X, pady=5)
-                tb.Label(params_frame, text="目标ID (QQ号或群号):").pack(anchor=W)
-                id_entry = tb.Entry(params_frame, width=50)
-                id_entry.insert(0, task.get('target_id', ''))
-                id_entry.pack(fill=X, pady=5)
-                tb.Label(params_frame, text="消息内容 (可用 {message} 代替原始传感器消息):").pack(anchor=W)
-                content_entry = tb.Entry(params_frame, width=50)
-                content_entry.insert(0, task.get('content', ''))
-                content_entry.pack(fill=X, pady=5)
-                dynamic_data["target_type"] = target_type_var
-                dynamic_data["target_id"] = id_entry
-                dynamic_data["content"] = content_entry
-
-        update_params()
-
-        bottom_btn_frame = tb.Frame(main_frame)
-        bottom_btn_frame.pack(side=BOTTOM, fill=X, pady=10, padx=10)
+        bottom_row = QWidget()
+        bottom_row_layout = QHBoxLayout(bottom_row)
+        bottom_row_layout.setContentsMargins(0, 0, 0, 0)
+        bottom_row_layout.addStretch()
 
         def save():
-            ttype = task_type_var.get()
+            display = type_combo.currentText()
+            ttype = type_display_map.get(display, "ai_notify")
             new_task = {"type": ttype}
             if ttype == "ai_notify":
-                new_task["prompt"] = dynamic_data["prompt"].get().strip()
-                new_task["send_reply"] = dynamic_data["send_reply"].get()
+                new_task["prompt"] = prompt_entry.text().strip()
+                new_task["send_reply"] = send_reply_check.isChecked()
             elif ttype == "control_device":
-                new_task["device_name"] = dynamic_data["device_name"].get()
-                new_task["command"] = dynamic_data["command"].get().strip()
+                new_task["device_name"] = dev_combo.currentText()
+                new_task["command"] = cmd_entry.text().strip()
             elif ttype == "qq_notify":
-                new_task["target_type"] = dynamic_data["target_type"].get()
-                new_task["target_id"] = dynamic_data["target_id"].get().strip()
-                new_task["content"] = dynamic_data["content"].get().strip()
+                target_map = {"私聊": "private", "群聊": "group"}
+                new_task["target_type"] = target_map.get(target_combo.currentText(), "private")
+                new_task["target_id"] = id_entry.text().strip()
+                new_task["content"] = content_entry.text().strip()
             trigger.tasks[task_index] = new_task
             iot_manager._save_triggers()
             refresh_cb()
             self._refresh_triggers()
-            win.destroy()
+            win.accept()
 
-        tb.Button(bottom_btn_frame, text="保存并关闭", command=save, bootstyle="success").pack(side=LEFT, padx=5)
-        tb.Button(bottom_btn_frame, text="取消", command=win.destroy, bootstyle="secondary").pack(side=LEFT, padx=5)
+        bottom_row_layout.addWidget(_make_btn("取消", "secondary-outline", win.reject))
+        bottom_row_layout.addWidget(_make_btn("保存并关闭", "success", save))
+        main_layout.addWidget(bottom_row)
+
+        win.exec()
+
+    # -------------------- 日志记录 --------------------
     def create_log_tab(self):
-        """日志记录表格页"""
-        tab = tb.Frame(self.notebook)
-        self.notebook.add(tab, text="📋 日志记录")
+        tab = QWidget()
+        self.notebook.addTab(tab, "日志记录")
 
-        # 工具栏
-        toolbar = tb.Frame(tab)
-        toolbar.pack(fill=X, padx=5, pady=5)
-        tb.Button(toolbar, text="🔄 刷新", command=self.refresh_log_table, bootstyle="secondary-outline").pack(side=LEFT, padx=2)
-        tb.Button(toolbar, text="🗑️ 清空日志", command=self.clear_logs, bootstyle="danger-outline").pack(side=LEFT, padx=2)
+        tab_layout = QVBoxLayout(tab)
+        tab_layout.setContentsMargins(20, 20, 20, 20)
+        tab_layout.setSpacing(12)
 
-        # 表格
-        columns = ("时间", "类型", "设备名称", "内容", "协议")
-        self.log_tree = ttk.Treeview(tab, columns=columns, show="headings", height=20)
-        for col in columns:
-            self.log_tree.heading(col, text=col)
-            if col == "时间":
-                self.log_tree.column(col, width=160)
-            elif col == "设备名称":
-                self.log_tree.column(col, width=120)
-            elif col == "内容":
-                self.log_tree.column(col, width=300)
-            else:
-                self.log_tree.column(col, width=80)
-        scrollbar = ttk.Scrollbar(tab, orient=VERTICAL, command=self.log_tree.yview)
-        self.log_tree.configure(yscrollcommand=scrollbar.set)
-        self.log_tree.pack(side=LEFT, fill=BOTH, expand=True, padx=5, pady=5)
-        scrollbar.pack(side=RIGHT, fill=Y, pady=5)
+        toolbar = QWidget()
+        toolbar_layout = QHBoxLayout(toolbar)
+        toolbar_layout.setContentsMargins(0, 0, 0, 0)
+        toolbar_layout.setSpacing(10)
+
+        self.log_search = QLineEdit()
+        self.log_search.setPlaceholderText("🔍 搜索日志...")
+        self.log_search.setMinimumWidth(280)
+        self.log_search.textChanged.connect(self.refresh_log_table)
+        toolbar_layout.addWidget(self.log_search)
+        toolbar_layout.addWidget(_make_btn("🔄 刷新", "secondary-outline", self.refresh_log_table))
+        toolbar_layout.addWidget(_make_btn("🗑️ 清空日志", "danger-outline", self.clear_logs))
+        toolbar_layout.addStretch()
+        tab_layout.addWidget(toolbar)
+
+        self.log_table = QTableWidget()
+        self.log_table.setColumnCount(5)
+        self.log_table.setHorizontalHeaderLabels(["时间", "类型", "设备名称", "内容", "协议"])
+        self.log_table.setAlternatingRowColors(True)
+        self.log_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.log_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.log_table.horizontalHeader().setStretchLastSection(True)
+        self.log_table.setColumnWidth(0, 160)
+        self.log_table.setColumnWidth(1, 100)
+        self.log_table.setColumnWidth(2, 140)
+        self.log_table.setColumnWidth(3, 400)
+        self.log_table.setColumnWidth(4, 100)
+        self.log_table.verticalHeader().setVisible(False)
+        self.log_table.setStyleSheet(self.log_table.styleSheet() + "QTableWidget::item { padding: 8px; }")
+        tab_layout.addWidget(self.log_table)
 
         self.refresh_log_table()
 
     def refresh_log_table(self):
-        for item in self.log_tree.get_children():
-            self.log_tree.delete(item)
-        from iot_logger import iot_logger
+        self.log_table.setRowCount(0)
         logs = iot_logger.get_logs(500)
-        for log in logs:
+        search = getattr(self, 'log_search', None)
+        if search:
+            keyword = search.text().strip().lower()
+            if keyword:
+                logs = [log for log in logs if keyword in json.dumps(log, ensure_ascii=False).lower()]
+        self.log_table.setRowCount(len(logs))
+        for row_idx, log in enumerate(logs):
             typ = log.get("type")
             ts = log.get("timestamp", "")[:19]
             if typ == "command":
@@ -1219,120 +2785,173 @@ class TGHomeApp:
                 dev = log.get("device_name", "")
                 content = log.get("command", "")
                 protocol = log.get("protocol", "")
+                badge_color = "#4a90d9"
             elif typ == "sensor":
                 type_icon = "📥 传感器"
                 dev = log.get("device_name", "")
                 content = log.get("message", "")
                 protocol = log.get("protocol", "")
+                badge_color = "#27ae60"
             elif typ == "trigger":
                 type_icon = "⚡ 触发器"
                 dev = log.get("trigger_name", "")
                 content = f"传感器: {log.get('sensor_name', '')} | 消息: {log.get('message', '')}"
                 protocol = ""
+                badge_color = "#f39c12"
             else:
                 continue
-            self.log_tree.insert("", tk.END, values=(ts, type_icon, dev, content, protocol))
-            
+
+            self.log_table.setItem(row_idx, 0, QTableWidgetItem(ts))
+
+            # 类型使用彩色标签
+            type_item = QTableWidgetItem(type_icon)
+            type_item.setForeground(QColor(badge_color))
+            type_item.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
+            self.log_table.setItem(row_idx, 1, type_item)
+
+            self.log_table.setItem(row_idx, 2, QTableWidgetItem(dev))
+            self.log_table.setItem(row_idx, 3, QTableWidgetItem(content))
+            self.log_table.setItem(row_idx, 4, QTableWidgetItem(protocol))
+
     def clear_logs(self):
-        if messagebox.askyesno("确认", "清空所有日志？"):
-            from iot_logger import iot_logger
+        reply = QMessageBox.question(self, "确认", "清空所有日志？",
+                                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        if reply == QMessageBox.StandardButton.Yes:
             iot_logger.clear_logs()
             self.refresh_log_table()
 
+    # -------------------- 主动智能 --------------------
     def create_active_intelligence_tab(self):
-        """主动智能设置页"""
-        tab = tb.Frame(self.notebook)
-        self.notebook.add(tab, text="🧠 主动智能")
+        tab = QWidget()
+        self.notebook.addTab(tab, "主动智能")
 
-        main_frame = tb.Frame(tab, padding=10)
-        main_frame.pack(fill=BOTH, expand=True)
+        main_frame = QWidget()
+        main_layout = QVBoxLayout(main_frame)
+        main_layout.setContentsMargins(24, 20, 24, 20)
+        main_layout.setSpacing(16)
+
+        tab_layout = QVBoxLayout(tab)
+        tab_layout.setContentsMargins(0, 0, 0, 0)
+        tab_layout.addWidget(main_frame)
+
+        # 标题
+        title = QLabel("🧠 主动智能巡检")
+        title_font = QFont()
+        title_font.setBold(True)
+        title_font.setPointSize(18)
+        title.setFont(title_font)
+        main_layout.addWidget(title)
+        main_layout.addSpacing(8)
 
         # 巡检设置组
-        group1_frame = tb.Frame(main_frame)
-        group1_frame.pack(fill=X, pady=5)
-        tb.Label(group1_frame, text="巡检设置", font=("微软雅黑", 9, "bold"),
-                 bootstyle="primary").pack(anchor=NW, padx=5, pady=(5,0))
-        group1 = tb.Frame(group1_frame, relief=GROOVE, borderwidth=1)
-        group1.pack(fill=X, padx=5, pady=5)
+        group1 = QFrame()
+        group1.setProperty("cssClass", "group-frame")
+        group1.setStyleSheet("")
+        g1_layout = QVBoxLayout(group1)
+        g1_layout.setContentsMargins(20, 20, 20, 20)
+        g1_layout.setSpacing(16)
 
-        # 启用主动巡检复选框
-        self.inspector_enabled_var = tk.BooleanVar(value=config.inspector_enabled)
-        tb.Checkbutton(group1, text="启用主动巡检", variable=self.inspector_enabled_var).grid(
-            row=0, column=0, columnspan=4, sticky=W, padx=5, pady=5)
+        section_title = QLabel("巡检设置")
+        section_title.setStyleSheet("font-size: 14px; font-weight: 600;")
+        g1_layout.addWidget(section_title)
 
-        # 巡检间隔设置
-        tb.Label(group1, text="巡检间隔:").grid(row=1, column=0, sticky=W, padx=5, pady=5)
-        self.inspect_interval_var = tk.IntVar(value=config.inspector_interval)
-        interval_spin = tb.Spinbox(group1, from_=60, to=86400, increment=60,
-                                   textvariable=self.inspect_interval_var, width=10)
-        interval_spin.grid(row=1, column=1, sticky=W, padx=5)
-        tb.Label(group1, text="秒 (1分钟~24小时)").grid(row=1, column=2, sticky=W)
+        self.inspector_enabled_check = QCheckBox("启用主动巡检")
+        self.inspector_enabled_check.setChecked(getattr(config, 'inspector_enabled', True))
+        self.inspector_enabled_check.setStyleSheet("font-size: 14px;")
+        g1_layout.addWidget(self.inspector_enabled_check)
+
+        interval_row = QWidget()
+        interval_layout = QHBoxLayout(interval_row)
+        interval_layout.setContentsMargins(0, 0, 0, 0)
+        interval_layout.setSpacing(12)
+        interval_layout.addWidget(QLabel("巡检间隔:"))
+        self.inspect_interval_spin = QSpinBox()
+        self.inspect_interval_spin.setRange(60, 86400)
+        self.inspect_interval_spin.setSingleStep(60)
+        self.inspect_interval_spin.setValue(getattr(config, 'inspector_interval', 3600))
+        self.inspect_interval_spin.setMinimumWidth(120)
+        self.inspect_interval_spin.setStyleSheet("font-size: 14px;")
+        interval_layout.addWidget(self.inspect_interval_spin)
+        interval_layout.addWidget(QLabel("秒 (1分钟~24小时)"))
+        interval_layout.addStretch()
 
         def save_settings():
-            config.inspector_enabled = self.inspector_enabled_var.get()
+            config.inspector_enabled = self.inspector_enabled_check.isChecked()
             try:
-                config.inspector_interval = self.inspect_interval_var.get()
+                config.inspector_interval = self.inspect_interval_spin.value()
             except:
                 pass
-            if hasattr(self, 'main_gui'):
-                self.main_gui._save_all_config()   # 持久化到文件
-            # 根据启用状态启动或停止巡检器
+            if hasattr(self, 'main_gui') and self.main_gui and hasattr(self.main_gui, '_save_all_config'):
+                self.main_gui._save_all_config()
             if config.inspector_enabled:
                 self.start_inspector()
             else:
                 self.stop_inspector()
-            messagebox.showinfo("成功", "巡检设置已保存")
+            QMessageBox.information(self, "成功", "巡检设置已保存")
 
-        tb.Button(group1, text="💾 保存设置", command=save_settings,
-                  bootstyle="success-outline").grid(row=1, column=3, padx=10)
+        interval_layout.addWidget(_make_btn("💾 保存设置", "success-outline", save_settings))
+        g1_layout.addWidget(interval_row)
+        main_layout.addWidget(group1)
 
-        # 手动巡检按钮
-        btn_frame = tb.Frame(main_frame)
-        btn_frame.pack(pady=10)
-        tb.Button(btn_frame, text="🔍 立即巡检（手动）", command=self.manual_inspect,
-                  bootstyle="primary", width=20).pack(pady=5)
+        # 状态与控制
+        status_frame = QFrame()
+        status_frame.setProperty("cssClass", "group-frame")
+        status_frame.setStyleSheet("")
+        sf_layout = QVBoxLayout(status_frame)
+        sf_layout.setContentsMargins(20, 20, 20, 20)
+        sf_layout.setSpacing(16)
 
-        # 状态显示
-        self.inspect_status = tb.Label(main_frame, text="巡检器未启动", foreground="gray")
-        self.inspect_status.pack(pady=10)
+        status_title = QLabel("巡检状态")
+        status_title.setStyleSheet("font-size: 14px; font-weight: 600;")
+        sf_layout.addWidget(status_title)
 
-        # 启动/停止按钮
-        ctrl_frame = tb.Frame(main_frame)
-        ctrl_frame.pack(pady=5)
-        tb.Button(ctrl_frame, text="▶ 启动巡检器", command=self.start_inspector,
-                  bootstyle="success").pack(side=LEFT, padx=5)
-        tb.Button(ctrl_frame, text="⏹️ 停止巡检器", command=self.stop_inspector,
-                  bootstyle="danger").pack(side=LEFT, padx=5)
+        self.inspect_status = QLabel("巡检器未启动")
+        self.inspect_status.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.inspect_status.setStyleSheet("font-size: 16px; color: #7f8c8d; font-weight: 600; padding: 12px;")
+        sf_layout.addWidget(self.inspect_status)
 
-        # 根据配置决定初始状态，不自动启动
-        if config.inspector_enabled:
+        btn_frame = QWidget()
+        bf_layout = QHBoxLayout(btn_frame)
+        bf_layout.setContentsMargins(0, 0, 0, 0)
+        bf_layout.setSpacing(12)
+        bf_layout.addStretch()
+        bf_layout.addWidget(_make_btn("▶ 启动巡检器", "success", self.start_inspector))
+        bf_layout.addWidget(_make_btn("🔍 立即巡检", "primary", self.manual_inspect))
+        bf_layout.addWidget(_make_btn("⏹️ 停止巡检器", "danger", self.stop_inspector))
+        bf_layout.addStretch()
+        sf_layout.addWidget(btn_frame)
+
+        main_layout.addWidget(status_frame)
+        main_layout.addStretch()
+
+        if getattr(config, 'inspector_enabled', True):
             self.start_inspector()
         else:
-            self.inspect_status.config(text="巡检器已禁用")
-        
+            self.inspect_status.setText("巡检器已禁用")
+
     def manual_inspect(self):
-        from smart_inspector import inspector
         inspector.trigger_inspection("manual")
-        self.inspect_status.config(text="手动巡检已触发", foreground="green")
-        self.root.after(5000, lambda: self.inspect_status.config(text="巡检器运行中", foreground="white"))
+        self.inspect_status.setText("手动巡检已触发")
+        self.inspect_status.setStyleSheet("color: #27ae60; font-size: 16px; font-weight: 600; padding: 12px;")
+        QTimer.singleShot(5000, lambda: self._reset_inspect_status())
+
+    def _reset_inspect_status(self):
+        self.inspect_status.setText("巡检器运行中")
+        self.inspect_status.setStyleSheet("color: white; font-size: 16px; font-weight: 600; padding: 12px;" if self._is_dark else "color: #2c3e50; font-size: 16px; font-weight: 600; padding: 12px;")
 
     def start_inspector(self):
-        from smart_inspector import inspector
-        # 不要重新设置回调！回调已在主窗口 GUI2_0 中设置好了
-        # 仅设置间隔并启动
-        inspector.set_interval(self.inspect_interval_var.get())
+        inspector.set_interval(self.inspect_interval_spin.value())
         inspector.start()
-        self.inspect_status.config(text="巡检器运行中", foreground="green")
+        self.inspect_status.setText("巡检器运行中")
+        self.inspect_status.setStyleSheet("color: #27ae60; font-size: 16px; font-weight: 600; padding: 12px;")
 
     def stop_inspector(self):
-        from smart_inspector import inspector
         inspector.stop()
-        self.inspect_status.config(text="巡检器已停止", foreground="red")
+        self.inspect_status.setText("巡检器已停止")
+        self.inspect_status.setStyleSheet("color: #e74c3c; font-size: 16px; font-weight: 600; padding: 12px;")
 
     def call_ai_for_inspection(self, prompt, reply_callback):
-        """供巡检器调用的 AI 接口（静默运行，不更新 UI，避免线程冲突）"""
         if hasattr(self, 'main_gui') and self.main_gui:
-            # 临时替换输出回调为静默函数，不更新聊天界面
             original_callback = self.main_gui.agent.output_callback
             self.main_gui.agent.output_callback = lambda msg: None
             try:
@@ -1342,13 +2961,10 @@ class TGHomeApp:
         else:
             print("[巡检] 无法调用AI，缺少主窗口引用")
 
+    # -------------------- 配置导入导出 --------------------
     def export_config(self):
-        """导出所有设备、传感器、触发器配置到 JSON 文件"""
-        from tkinter import filedialog
-        file_path = filedialog.asksaveasfilename(
-            title="导出配置",
-            defaultextension=".json",
-            filetypes=[("JSON 文件", "*.json"), ("所有文件", "*.*")]
+        file_path, _ = QFileDialog.getSaveFileName(
+            self, "导出配置", "", "JSON 文件 (*.json);;所有文件 (*.*)"
         )
         if not file_path:
             return
@@ -1360,55 +2976,51 @@ class TGHomeApp:
             }
             with open(file_path, 'w', encoding='utf-8') as f:
                 json.dump(config_data, f, indent=2, ensure_ascii=False)
-            messagebox.showinfo("成功", f"配置已导出到 {file_path}")
+            QMessageBox.information(self, "成功", f"配置已导出到 {file_path}")
         except Exception as e:
-            messagebox.showerror("错误", f"导出失败: {e}")
+            QMessageBox.critical(self, "错误", f"导出失败: {e}")
 
     def import_config(self):
-        """导入配置文件，覆盖当前设备、传感器、触发器"""
-        from tkinter import filedialog
-        file_path = filedialog.askopenfilename(
-            title="导入配置",
-            filetypes=[("JSON 文件", "*.json"), ("所有文件", "*.*")]
+        file_path, _ = QFileDialog.getOpenFileName(
+            self, "导入配置", "", "JSON 文件 (*.json);;所有文件 (*.*)"
         )
         if not file_path:
             return
-        if not messagebox.askyesno("确认", "导入将覆盖当前所有设备、传感器、触发器配置，是否继续？"):
+        reply = QMessageBox.question(self, "确认",
+                                     "导入将覆盖当前所有设备、传感器、触发器配置，是否继续？",
+                                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        if reply != QMessageBox.StandardButton.Yes:
             return
         try:
             with open(file_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
-            # 清空现有
             iot_manager.devices.clear()
             iot_manager.sensors.clear()
             iot_manager.triggers.clear()
-            # 导入设备
             for dev_data in data.get("devices", []):
                 dev = IOTDevice(dev_data)
                 iot_manager.devices[dev.name] = dev
-            # 导入传感器
             for sen_data in data.get("sensors", []):
                 sen = IOTSensor(sen_data)
                 iot_manager.sensors[sen.name] = sen
-            # 导入触发器
             for trig_data in data.get("triggers", []):
                 trig = IOTTrigger(trig_data)
                 iot_manager.triggers[trig.name] = trig
-            # 保存到文件
             iot_manager._save_devices()
             iot_manager._save_sensors()
             iot_manager._save_triggers()
-            # 重新加载监听器（需要重启传感器监听）
             iot_manager._stop_all_listeners()
             iot_manager._start_sensor_listeners()
             self._refresh_all()
-            messagebox.showinfo("成功", "配置导入成功，已重新加载")
+            QMessageBox.information(self, "成功", "配置导入成功，已重新加载")
         except Exception as e:
-            messagebox.showerror("错误", f"导入失败: {e}")
+            QMessageBox.critical(self, "错误", f"导入失败: {e}")
 
     def reset_config(self):
-        """重置所有配置：清空设备、传感器、触发器"""
-        if not messagebox.askyesno("确认重置", "此操作将删除所有设备、传感器、触发器配置，且不可恢复。是否继续？"):
+        reply = QMessageBox.question(self, "确认重置",
+                                     "此操作将删除所有设备、传感器、触发器配置，且不可恢复。是否继续？",
+                                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        if reply != QMessageBox.StandardButton.Yes:
             return
         try:
             iot_manager.devices.clear()
@@ -1417,130 +3029,211 @@ class TGHomeApp:
             iot_manager._save_devices()
             iot_manager._save_sensors()
             iot_manager._save_triggers()
-            # 停止并重启监听器
             iot_manager._stop_all_listeners()
             iot_manager._start_sensor_listeners()
             self._refresh_all()
-            messagebox.showinfo("成功", "配置已重置")
+            QMessageBox.information(self, "成功", "配置已重置")
         except Exception as e:
-            messagebox.showerror("错误", f"重置失败: {e}")
+            QMessageBox.critical(self, "错误", f"重置失败: {e}")
 
+    # -------------------- 内置服务器 --------------------
     def create_servers_tab(self):
         try:
             import paho.mqtt.client
         except ImportError:
-            import subprocess
-            import sys
             subprocess.check_call([sys.executable, "-m", "pip", "install", "paho-mqtt"])
-        tab = tb.Frame(self.notebook)
-        self.notebook.add(tab, text="🚀 内置服务器")
 
-        # 创建 Notebook 子标签页
-        inner_notebook = tb.Notebook(tab, bootstyle="secondary")
-        inner_notebook.pack(fill=BOTH, expand=True, padx=5, pady=5)
+        tab = QWidget()
+        self.notebook.addTab(tab, "内置服务器")
 
-        # MQTT 面板
-        mqtt_frame = tb.Frame(inner_notebook)
-        inner_notebook.add(mqtt_frame, text="MQTT 服务器")
+        tab_layout = QVBoxLayout(tab)
+        tab_layout.setContentsMargins(20, 20, 20, 20)
+        tab_layout.setSpacing(16)
+
+        title = QLabel("🚀 内置服务器")
+        title_font = QFont()
+        title_font.setBold(True)
+        title_font.setPointSize(18)
+        title.setFont(title_font)
+        tab_layout.addWidget(title)
+        tab_layout.addSpacing(4)
+
+        inner_notebook = QTabWidget()
+        tab_layout.addWidget(inner_notebook)
+
+        mqtt_frame = QWidget()
+        inner_notebook.addTab(mqtt_frame, "MQTT 服务器")
         self._create_mqtt_panel(mqtt_frame)
 
-        # TCP 面板
-        tcp_frame = tb.Frame(inner_notebook)
-        inner_notebook.add(tcp_frame, text="TCP 服务器")
+        tcp_frame = QWidget()
+        inner_notebook.addTab(tcp_frame, "TCP 服务器")
         self._create_tcp_panel(tcp_frame)
 
+    # ── MQTT 面板 ──
     def _create_mqtt_panel(self, parent):
-        # 控制区域
-        control_frame = tb.Frame(parent)
-        control_frame.pack(fill=X, padx=5, pady=5)
+        parent_layout = QVBoxLayout(parent)
+        parent_layout.setContentsMargins(0, 0, 0, 0)
+        parent_layout.setSpacing(16)
 
-        tb.Label(control_frame, text="端口:").pack(side=LEFT, padx=2)
-        self.mqtt_port_var = tk.IntVar(value=1883)
-        tb.Spinbox(control_frame, from_=1024, to=65535, textvariable=self.mqtt_port_var, width=8).pack(side=LEFT, padx=2)
+        # 控制面板
+        control_frame = QFrame()
+        control_frame.setProperty("cssClass", "group-frame")
+        control_frame.setStyleSheet("")
+        cf_layout = QHBoxLayout(control_frame)
+        cf_layout.setContentsMargins(20, 16, 20, 16)
+        cf_layout.setSpacing(16)
 
-        self.mqtt_status_label = tb.Label(control_frame, text="未启动", foreground="red")
-        self.mqtt_status_label.pack(side=LEFT, padx=10)
+        cf_layout.addWidget(QLabel("端口:"))
+        self.mqtt_port_spin = QSpinBox()
+        self.mqtt_port_spin.setRange(1024, 65535)
+        self.mqtt_port_spin.setValue(1883)
+        self.mqtt_port_spin.setFixedWidth(100)
+        cf_layout.addWidget(self.mqtt_port_spin)
 
-        self.mqtt_start_btn = tb.Button(control_frame, text="启动", command=self._start_mqtt, bootstyle="success")
-        self.mqtt_start_btn.pack(side=LEFT, padx=2)
-        self.mqtt_stop_btn = tb.Button(control_frame, text="停止", command=self._stop_mqtt, bootstyle="danger", state=tk.DISABLED)
-        self.mqtt_stop_btn.pack(side=LEFT, padx=2)
+        cf_layout.addSpacing(16)
+        self.mqtt_status_label = QLabel("未启动")
+        self.mqtt_status_label.setStyleSheet("color: #e74c3c; font-weight: 600; font-size: 14px;")
+        cf_layout.addWidget(self.mqtt_status_label)
+        cf_layout.addStretch()
 
-        # 主题管理区域（使用普通 Frame 模拟 LabelFrame）
-        topic_frame = tb.Frame(parent)
-        topic_frame.pack(fill=BOTH, expand=True, padx=5, pady=5)
-        tb.Label(topic_frame, text="主题消息记录", font=("微软雅黑", 9, "bold"),
-                 bootstyle="primary").pack(anchor=NW, padx=5, pady=(5,0))
-        topic_content = tb.Frame(topic_frame, relief=tk.GROOVE, borderwidth=1)
-        topic_content.pack(fill=BOTH, expand=True, padx=5, pady=5)
+        self.mqtt_start_btn = _make_btn("▶ 启动", "success", self._start_mqtt)
+        self.mqtt_stop_btn = _make_btn("⏹ 停止", "danger", self._stop_mqtt)
+        self.mqtt_stop_btn.setEnabled(False)
+        self.mqtt_start_btn.setFixedHeight(36)
+        self.mqtt_stop_btn.setFixedHeight(36)
+        cf_layout.addWidget(self.mqtt_start_btn)
+        cf_layout.addWidget(self.mqtt_stop_btn)
 
-        # 左侧主题列表，右侧消息显示（使用 tk.PanedWindow）
-        paned = tk.PanedWindow(topic_content, orient=tk.HORIZONTAL, sashrelief=tk.RAISED, sashwidth=5)
-        paned.pack(fill=BOTH, expand=True)
+        parent_layout.addWidget(control_frame)
 
-        left_frame = tb.Frame(paned)
-        paned.add(left_frame, width=150)
-        tb.Label(left_frame, text="订阅的主题").pack(anchor=W)
-        self.topic_listbox = tk.Listbox(left_frame)
-        self.topic_listbox.pack(fill=BOTH, expand=True)
-        self.topic_listbox.bind('<<ListboxSelect>>', self._on_topic_select)
+        # 主题管理
+        topic_frame = QWidget()
+        tf_layout = QVBoxLayout(topic_frame)
+        tf_layout.setContentsMargins(0, 0, 0, 0)
+        tf_layout.setSpacing(12)
 
-        btn_frame = tb.Frame(left_frame)
-        btn_frame.pack(fill=X, pady=2)
-        tb.Button(btn_frame, text="➕ 添加主题", command=self._add_topic, bootstyle="success-outline").pack(side=LEFT, padx=2)
-        tb.Button(btn_frame, text="❌ 删除主题", command=self._del_topic, bootstyle="danger-outline").pack(side=LEFT, padx=2)
+        topic_title = QLabel("📡 主题消息记录")
+        topic_title.setStyleSheet("font-size: 14px; font-weight: 600;")
+        tf_layout.addWidget(topic_title)
 
-        right_frame = tb.Frame(paned)
-        paned.add(right_frame, width=300)
-        tb.Label(right_frame, text="消息记录").pack(anchor=W)
-        self.topic_msg_text = scrolledtext.ScrolledText(right_frame, wrap=tk.WORD, height=15)
-        self.topic_msg_text.pack(fill=BOTH, expand=True)
-        msg_btn_frame = tb.Frame(right_frame)
-        msg_btn_frame.pack(fill=X)
-        tb.Button(msg_btn_frame, text="清空记录", command=self._clear_topic_msgs, bootstyle="secondary-outline").pack(side=LEFT, padx=2)
-        tb.Button(msg_btn_frame, text="查看历史", command=self._view_topic_history, bootstyle="info-outline").pack(side=LEFT, padx=2)
+        topic_content = QFrame()
+        topic_content.setProperty("cssClass", "group-frame")
+        topic_content.setStyleSheet("")
+        tc_layout = QVBoxLayout(topic_content)
+        tc_layout.setContentsMargins(12, 12, 12, 12)
 
-        # 服务器日志区域（使用普通 Frame 模拟 LabelFrame）
-        log_frame = tb.Frame(parent)
-        log_frame.pack(fill=BOTH, expand=True, padx=5, pady=5)
-        tb.Label(log_frame, text="服务器日志", font=("微软雅黑", 9, "bold"),
-                 bootstyle="secondary").pack(anchor=NW, padx=5, pady=(5,0))
-        log_content = tb.Frame(log_frame, relief=tk.GROOVE, borderwidth=1)
-        log_content.pack(fill=BOTH, expand=True, padx=5, pady=5)
-        self.mqtt_log_text = scrolledtext.ScrolledText(log_content, wrap=tk.WORD, height=8)
-        self.mqtt_log_text.pack(fill=BOTH, expand=True)
+        splitter = QSplitter(Qt.Orientation.Horizontal)
+        tc_layout.addWidget(splitter)
 
-        # 初始化内部 MQTT 客户端（用于订阅所有主题）
+        left_frame = QWidget()
+        lf_layout = QVBoxLayout(left_frame)
+        lf_layout.setContentsMargins(0, 0, 0, 0)
+        lf_layout.setSpacing(8)
+        lf_layout.addWidget(QLabel("订阅的主题"))
+        self.topic_listbox = QListWidget()
+        self.topic_listbox.currentRowChanged.connect(self._on_topic_select_row)
+        lf_layout.addWidget(self.topic_listbox)
+
+        topic_btn_row = QWidget()
+        tbr_layout = QHBoxLayout(topic_btn_row)
+        tbr_layout.setContentsMargins(0, 0, 0, 0)
+        tbr_layout.setSpacing(8)
+        tbr_layout.addWidget(_make_btn("➕ 添加主题", "success-outline", self._add_topic))
+        tbr_layout.addWidget(_make_btn("❌ 删除主题", "danger-outline", self._del_topic))
+        lf_layout.addWidget(topic_btn_row)
+
+        splitter.addWidget(left_frame)
+
+        right_frame = QWidget()
+        rf_layout = QVBoxLayout(right_frame)
+        rf_layout.setContentsMargins(0, 0, 0, 0)
+        rf_layout.setSpacing(8)
+        rf_layout.addWidget(QLabel("消息记录"))
+        self.topic_msg_text = QTextEdit()
+        self.topic_msg_text.setReadOnly(True)
+        self.topic_msg_text.setStyleSheet("font-family: 'Consolas', monospace; font-size: 12px;")
+        rf_layout.addWidget(self.topic_msg_text)
+
+        msg_btn_row = QWidget()
+        mbr_layout = QHBoxLayout(msg_btn_row)
+        mbr_layout.setContentsMargins(0, 0, 0, 0)
+        mbr_layout.setSpacing(8)
+        mbr_layout.addWidget(_make_btn("清空记录", "secondary-outline", self._clear_topic_msgs))
+        mbr_layout.addWidget(_make_btn("查看历史", "info-outline", self._view_topic_history))
+        mbr_layout.addStretch()
+        rf_layout.addWidget(msg_btn_row)
+
+        splitter.addWidget(right_frame)
+        splitter.setSizes([200, 450])
+
+        tf_layout.addWidget(topic_content)
+        parent_layout.addWidget(topic_frame)
+
+        # 服务器日志
+        log_frame_w = QWidget()
+        lfw_layout = QVBoxLayout(log_frame_w)
+        lfw_layout.setContentsMargins(0, 0, 0, 0)
+        lfw_layout.setSpacing(8)
+
+        log_title = QLabel("📝 服务器日志")
+        log_title.setStyleSheet("font-size: 14px; font-weight: 600;")
+        lfw_layout.addWidget(log_title)
+
+        log_content = QFrame()
+        log_content.setProperty("cssClass", "group-frame")
+        log_content.setStyleSheet("")
+        lc_layout = QVBoxLayout(log_content)
+        lc_layout.setContentsMargins(12, 12, 12, 12)
+        self.mqtt_log_text = QTextEdit()
+        self.mqtt_log_text.setReadOnly(True)
+        self.mqtt_log_text.setMaximumHeight(180)
+        self.mqtt_log_text.setStyleSheet("font-family: 'Consolas', monospace; font-size: 12px; background-color: #0d1117;")
+        lc_layout.addWidget(self.mqtt_log_text)
+
+        lfw_layout.addWidget(log_content)
+        parent_layout.addWidget(log_frame_w)
+
         self.mqtt_sub_client = None
-        self.mqtt_topics = {}  # topic -> list of messages
+        self.mqtt_topics = {}
         self._load_mqtt_topics()
 
+    # ── MQTT 信号处理 ──
+    def _on_mqtt_log(self, msg):
+        self.mqtt_log_text.append(msg)
+
+    def _on_topic_list_update(self, topic):
+        items = [self.topic_listbox.item(i).text() for i in range(self.topic_listbox.count())]
+        if topic not in items:
+            self.topic_listbox.addItem(topic)
+
+    def _on_topic_msg_update(self, topic, _dummy):
+        sel = self.topic_listbox.currentRow()
+        if sel >= 0 and self.topic_listbox.item(sel).text() == topic:
+            self._show_topic_messages(topic)
+
+    # ── MQTT 操作 ──
     def _start_mqtt(self):
         from builtin_servers import mqtt_manager
-        port = self.mqtt_port_var.get()
-        mqtt_manager.set_log_callback(self._mqtt_log)
+        port = self.mqtt_port_spin.value()
+        mqtt_manager.set_log_callback(lambda msg: self.mqtt_log_signal.emit(msg))
         if mqtt_manager.start(port=port):
-            self.mqtt_status_label.config(text="运行中", foreground="green")
-            self.mqtt_start_btn.config(state=tk.DISABLED)
-            self.mqtt_stop_btn.config(state=tk.NORMAL)
+            self.mqtt_status_label.setText("运行中")
+            self.mqtt_status_label.setStyleSheet("color: #27ae60; font-weight: 600; font-size: 14px;")
+            self.mqtt_start_btn.setEnabled(False)
+            self.mqtt_stop_btn.setEnabled(True)
             self._start_mqtt_subscriber()
 
     def _stop_mqtt(self):
         from builtin_servers import mqtt_manager
         mqtt_manager.stop()
-        self.mqtt_status_label.config(text="未启动", foreground="red")
-        self.mqtt_start_btn.config(state=tk.NORMAL)
-        self.mqtt_stop_btn.config(state=tk.DISABLED)
+        self.mqtt_status_label.setText("未启动")
+        self.mqtt_status_label.setStyleSheet("color: #e74c3c; font-weight: 600; font-size: 14px;")
+        self.mqtt_start_btn.setEnabled(True)
+        self.mqtt_stop_btn.setEnabled(False)
         if self.mqtt_sub_client:
             self.mqtt_sub_client.loop_stop()
             self.mqtt_sub_client.disconnect()
             self.mqtt_sub_client = None
-
-    def _mqtt_log(self, msg):
-        def add():
-            self.mqtt_log_text.insert(tk.END, msg + "\n")
-            self.mqtt_log_text.see(tk.END)
-        self.root.after(0, add)
 
     def _start_mqtt_subscriber(self):
         import paho.mqtt.client as mqtt
@@ -1551,125 +3244,130 @@ class TGHomeApp:
         self.mqtt_sub_client.on_message = self._on_subscribe_message
 
         try:
-            self.mqtt_sub_client.connect("127.0.0.1", self.mqtt_port_var.get())
+            self.mqtt_sub_client.connect("127.0.0.1", self.mqtt_port_spin.value())
             self.mqtt_sub_client.loop_start()
 
-            # 等待连接成功（最多2秒）
             for _ in range(20):
                 if self.mqtt_sub_client.is_connected():
                     break
                 time.sleep(0.1)
 
             if not self.mqtt_sub_client.is_connected():
-                self._mqtt_log("[订阅客户端] 连接失败，请检查MQTT服务器是否运行")
+                self.mqtt_log_signal.emit("[订阅客户端] 连接失败，请检查MQTT服务器是否运行")
             else:
-                self._mqtt_log("[订阅客户端] 已连接并准备订阅")
+                self.mqtt_log_signal.emit("[订阅客户端] 已连接并准备订阅")
         except Exception as e:
-            self._mqtt_log(f"[订阅客户端] 启动异常: {e}")
+            self.mqtt_log_signal.emit(f"[订阅客户端] 启动异常: {e}")
 
     def _on_subscribe_connect(self, client, userdata, flags, rc):
         if rc == 0:
             client.subscribe("#")
-            self._mqtt_log("[订阅客户端] 已订阅所有主题 (#)")
+            self.mqtt_log_signal.emit("[订阅客户端] 已订阅所有主题 (#)")
         else:
-            self._mqtt_log(f"[订阅客户端] 连接错误，错误码: {rc}")
+            self.mqtt_log_signal.emit(f"[订阅客户端] 连接错误，错误码: {rc}")
 
     def _on_subscribe_message(self, client, userdata, msg):
         topic = msg.topic
         payload = msg.payload.decode('utf-8')
         self._record_mqtt_message(topic, payload)
-        self.mqtt_sub_client.loop_start()
+        if self.mqtt_sub_client:
+            self.mqtt_sub_client.loop_start()
 
     def _record_mqtt_message(self, topic, payload):
         try:
-            # 存储到内存
             if topic not in self.mqtt_topics:
                 self.mqtt_topics[topic] = []
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             self.mqtt_topics[topic].append(f"[{timestamp}] {payload}")
-            # 刷新主题列表
-            def update():
-                if topic not in self.topic_listbox.get(0, tk.END):
-                    self.topic_listbox.insert(tk.END, topic)
-            self.root.after(0, update)
-            # 如果当前选中的主题就是该主题，更新显示
-            selection = self.topic_listbox.curselection()
-            if selection and self.topic_listbox.get(selection[0]) == topic:
-                self._show_topic_messages(topic)
-            # 保存到文件
+            self.topic_update_signal.emit(topic)
+            sel = self.topic_listbox.currentRow()
+            if sel >= 0 and self.topic_listbox.item(sel).text() == topic:
+                QTimer.singleShot(0, lambda: self._show_topic_messages(topic))
             self._save_mqtt_topics()
         except Exception as e:
             print(f"记录MQTT消息失败: {e}")
 
     def _show_topic_messages(self, topic):
-        self.topic_msg_text.delete(1.0, tk.END)
+        self.topic_msg_text.clear()
         if topic in self.mqtt_topics:
             for msg in self.mqtt_topics[topic]:
-                self.topic_msg_text.insert(tk.END, msg + "\n")
-        self.topic_msg_text.see(tk.END)
+                self.topic_msg_text.append(msg)
 
-    def _on_topic_select(self, event):
-        sel = self.topic_listbox.curselection()
-        if sel:
-            topic = self.topic_listbox.get(sel[0])
+    def _on_topic_select_row(self, row):
+        if row >= 0:
+            topic = self.topic_listbox.item(row).text()
             self._show_topic_messages(topic)
 
     def _add_topic(self):
-        win = tb.Toplevel(self.root)
-        win.title("添加订阅主题")
-        win.geometry("300x150")
-        tb.Label(win, text="主题名称:").pack(pady=5)
-        topic_entry = tb.Entry(win, width=30)
-        topic_entry.pack(pady=5)
+        win = QDialog(self)
+        win.setWindowTitle("添加订阅主题")
+        win.resize(350, 180)
+        win.setWindowModality(Qt.WindowModality.WindowModal)
+        win_layout = QVBoxLayout(win)
+        win_layout.setContentsMargins(20, 20, 20, 20)
+        win_layout.setSpacing(12)
+
+        win_layout.addWidget(QLabel("主题名称:"))
+        topic_entry = QLineEdit()
+        win_layout.addWidget(topic_entry)
 
         def do_add():
-            topic = topic_entry.get().strip()
+            topic = topic_entry.text().strip()
             if topic:
                 if self.mqtt_sub_client and self.mqtt_sub_client.is_connected():
                     self.mqtt_sub_client.subscribe(topic)
-                    self._mqtt_log(f"[订阅客户端] 已订阅主题: {topic}")
+                    self.mqtt_log_signal.emit(f"[订阅客户端] 已订阅主题: {topic}")
                 else:
-                    self._mqtt_log("[订阅客户端] 尚未连接，无法订阅新主题")
+                    self.mqtt_log_signal.emit("[订阅客户端] 尚未连接，无法订阅新主题")
                 if topic not in self.mqtt_topics:
                     self.mqtt_topics[topic] = []
-                self.topic_listbox.insert(tk.END, topic)
-                win.destroy()
+                items = [self.topic_listbox.item(i).text() for i in range(self.topic_listbox.count())]
+                if topic not in items:
+                    self.topic_listbox.addItem(topic)
+                win.accept()
 
-        tb.Button(win, text="订阅", command=do_add, bootstyle="success").pack(pady=10)
+        win_layout.addWidget(_make_btn("订阅", "success", do_add))
+        win.exec()
 
     def _del_topic(self):
-        sel = self.topic_listbox.curselection()
-        if sel:
-            topic = self.topic_listbox.get(sel[0])
-            if messagebox.askyesno("确认", f"删除主题 {topic} 的记录？"):
-                self.topic_listbox.delete(sel)
+        row = self.topic_listbox.currentRow()
+        if row >= 0:
+            topic = self.topic_listbox.item(row).text()
+            reply = QMessageBox.question(self, "确认", f"删除主题 {topic} 的记录？",
+                                         QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+            if reply == QMessageBox.StandardButton.Yes:
+                self.topic_listbox.takeItem(row)
                 if topic in self.mqtt_topics:
                     del self.mqtt_topics[topic]
-                self.topic_msg_text.delete(1.0, tk.END)
+                self.topic_msg_text.clear()
                 self._save_mqtt_topics()
 
     def _clear_topic_msgs(self):
-        sel = self.topic_listbox.curselection()
-        if sel:
-            topic = self.topic_listbox.get(sel[0])
+        row = self.topic_listbox.currentRow()
+        if row >= 0:
+            topic = self.topic_listbox.item(row).text()
             if topic in self.mqtt_topics:
                 self.mqtt_topics[topic] = []
                 self._show_topic_messages(topic)
                 self._save_mqtt_topics()
 
     def _view_topic_history(self):
-        sel = self.topic_listbox.curselection()
-        if not sel:
+        row = self.topic_listbox.currentRow()
+        if row < 0:
             return
-        topic = self.topic_listbox.get(sel[0])
-        win = tb.Toplevel(self.root)
-        win.title(f"消息历史 - {topic}")
-        win.geometry("500x400")
-        text = scrolledtext.ScrolledText(win, wrap=tk.WORD)
-        text.pack(fill=BOTH, expand=True)
+        topic = self.topic_listbox.item(row).text()
+        win = QDialog(self)
+        win.setWindowTitle(f"消息历史 - {topic}")
+        win.resize(600, 450)
+        win_layout = QVBoxLayout(win)
+        win_layout.setContentsMargins(12, 12, 12, 12)
+        text = QTextEdit()
+        text.setReadOnly(True)
+        text.setStyleSheet("font-family: 'Consolas', monospace; font-size: 12px;")
+        win_layout.addWidget(text)
         for msg in self.mqtt_topics.get(topic, []):
-            text.insert(tk.END, msg + "\n")
-        text.config(state=tk.DISABLED)
+            text.append(msg)
+        win.exec()
 
     def _load_mqtt_topics(self):
         file_path = "./builtin_servers_data/mqtt_topics.json"
@@ -1678,156 +3376,191 @@ class TGHomeApp:
                 data = json.load(f)
                 self.mqtt_topics = data
                 for topic in self.mqtt_topics:
-                    self.topic_listbox.insert(tk.END, topic)
+                    self.topic_listbox.addItem(topic)
 
     def _save_mqtt_topics(self):
         os.makedirs("./builtin_servers_data", exist_ok=True)
         with open("./builtin_servers_data/mqtt_topics.json", 'w', encoding='utf-8') as f:
             json.dump(self.mqtt_topics, f, indent=2)
 
+    # ── TCP 面板 ──
     def _create_tcp_panel(self, parent):
-        # 控制区域
-        control_frame = tb.Frame(parent)
-        control_frame.pack(fill=X, padx=5, pady=5)
+        parent_layout = QVBoxLayout(parent)
+        parent_layout.setContentsMargins(0, 0, 0, 0)
+        parent_layout.setSpacing(16)
 
-        tb.Label(control_frame, text="端口:").pack(side=LEFT, padx=2)
-        self.tcp_port_var = tk.IntVar(value=8888)
-        tb.Spinbox(control_frame, from_=1024, to=65535, textvariable=self.tcp_port_var, width=8).pack(side=LEFT, padx=2)
+        control_frame = QFrame()
+        control_frame.setProperty("cssClass", "group-frame")
+        control_frame.setStyleSheet("")
+        cf_layout = QHBoxLayout(control_frame)
+        cf_layout.setContentsMargins(20, 16, 20, 16)
+        cf_layout.setSpacing(16)
 
-        self.tcp_status_label = tb.Label(control_frame, text="未启动", foreground="red")
-        self.tcp_status_label.pack(side=LEFT, padx=10)
+        cf_layout.addWidget(QLabel("端口:"))
+        self.tcp_port_spin = QSpinBox()
+        self.tcp_port_spin.setRange(1024, 65535)
+        self.tcp_port_spin.setValue(8888)
+        self.tcp_port_spin.setFixedWidth(100)
+        cf_layout.addWidget(self.tcp_port_spin)
 
-        self.tcp_start_btn = tb.Button(control_frame, text="启动", command=self._start_tcp, bootstyle="success")
-        self.tcp_start_btn.pack(side=LEFT, padx=2)
-        self.tcp_stop_btn = tb.Button(control_frame, text="停止", command=self._stop_tcp, bootstyle="danger", state=tk.DISABLED)
-        self.tcp_stop_btn.pack(side=LEFT, padx=2)
+        cf_layout.addSpacing(16)
+        self.tcp_status_label = QLabel("未启动")
+        self.tcp_status_label.setStyleSheet("color: #e74c3c; font-weight: 600; font-size: 14px;")
+        cf_layout.addWidget(self.tcp_status_label)
+        cf_layout.addStretch()
 
-        # 客户端和消息区域
-        main_paned = tk.PanedWindow(parent, orient=tk.HORIZONTAL, sashrelief=tk.RAISED, sashwidth=5)
-        main_paned.pack(fill=BOTH, expand=True, padx=5, pady=5)
+        self.tcp_start_btn = _make_btn("▶ 启动", "success", self._start_tcp)
+        self.tcp_stop_btn = _make_btn("⏹ 停止", "danger", self._stop_tcp)
+        self.tcp_stop_btn.setEnabled(False)
+        self.tcp_start_btn.setFixedHeight(36)
+        self.tcp_stop_btn.setFixedHeight(36)
+        cf_layout.addWidget(self.tcp_start_btn)
+        cf_layout.addWidget(self.tcp_stop_btn)
 
-        # 左侧客户端列表
-        left_frame = tb.Frame(main_paned)
-        main_paned.add(left_frame, width=150)
-        tb.Label(left_frame, text="已连接的客户端").pack(anchor=W)
-        self.tcp_clients_listbox = tk.Listbox(left_frame)
-        self.tcp_clients_listbox.pack(fill=BOTH, expand=True)
-        self.tcp_clients_listbox.bind('<<ListboxSelect>>', self._on_tcp_client_select)
+        parent_layout.addWidget(control_frame)
 
-        # 右侧消息显示和发送
-        right_frame = tb.Frame(main_paned)
-        main_paned.add(right_frame, width=300)
+        main_splitter = QSplitter(Qt.Orientation.Horizontal)
+        parent_layout.addWidget(main_splitter)
 
-        tb.Label(right_frame, text="来自客户端的消息").pack(anchor=W)
-        self.tcp_msg_text = scrolledtext.ScrolledText(right_frame, wrap=tk.WORD, height=10)
-        self.tcp_msg_text.pack(fill=BOTH, expand=True)
+        left_frame = QWidget()
+        lf_layout = QVBoxLayout(left_frame)
+        lf_layout.setContentsMargins(0, 0, 0, 0)
+        lf_layout.setSpacing(8)
+        lf_layout.addWidget(QLabel("已连接的客户端"))
+        self.tcp_clients_listbox = QListWidget()
+        self.tcp_clients_listbox.currentRowChanged.connect(self._on_tcp_client_select_row)
+        lf_layout.addWidget(self.tcp_clients_listbox)
+        main_splitter.addWidget(left_frame)
 
-        tb.Label(right_frame, text="发送消息到选中客户端").pack(anchor=W, pady=(5,0))
-        self.tcp_send_entry = tb.Entry(right_frame)
-        self.tcp_send_entry.pack(fill=X, pady=2)
-        send_btn = tb.Button(right_frame, text="发送", command=self._tcp_send_to_client, bootstyle="primary")
-        send_btn.pack(anchor=W, pady=2)
+        right_frame = QWidget()
+        rf_layout = QVBoxLayout(right_frame)
+        rf_layout.setContentsMargins(0, 0, 0, 0)
+        rf_layout.setSpacing(10)
 
-        # 服务器日志区域（使用普通 Frame 模拟 LabelFrame）
-        log_frame = tb.Frame(parent)
-        log_frame.pack(fill=BOTH, expand=True, padx=5, pady=5)
-        tb.Label(log_frame, text="服务器日志", font=("微软雅黑", 9, "bold"),
-                 bootstyle="secondary").pack(anchor=NW, padx=5, pady=(5,0))
-        log_content = tb.Frame(log_frame, relief=tk.GROOVE, borderwidth=1)
-        log_content.pack(fill=BOTH, expand=True, padx=5, pady=5)
-        self.tcp_log_text = scrolledtext.ScrolledText(log_content, wrap=tk.WORD, height=6)
-        self.tcp_log_text.pack(fill=BOTH, expand=True)
+        rf_layout.addWidget(QLabel("来自客户端的消息"))
+        self.tcp_msg_text = QTextEdit()
+        self.tcp_msg_text.setReadOnly(True)
+        self.tcp_msg_text.setStyleSheet("font-family: 'Consolas', monospace; font-size: 12px;")
+        rf_layout.addWidget(self.tcp_msg_text)
 
-        self.tcp_clients = []  # 存储 (addr, conn) 信息
+        rf_layout.addWidget(QLabel("发送消息到选中客户端"))
+        self.tcp_send_entry = QLineEdit()
+        rf_layout.addWidget(self.tcp_send_entry)
+        send_btn = _make_btn("发送", "primary", self._tcp_send_to_client)
+        send_btn.setFixedHeight(36)
+        rf_layout.addWidget(send_btn)
+        rf_layout.addStretch()
+
+        main_splitter.addWidget(right_frame)
+        main_splitter.setSizes([200, 450])
+
+        # 服务器日志
+        log_frame_w = QWidget()
+        lfw_layout = QVBoxLayout(log_frame_w)
+        lfw_layout.setContentsMargins(0, 0, 0, 0)
+        lfw_layout.setSpacing(8)
+
+        log_title = QLabel("📝 服务器日志")
+        log_title.setStyleSheet("font-size: 14px; font-weight: 600;")
+        lfw_layout.addWidget(log_title)
+
+        log_content = QFrame()
+        log_content.setProperty("cssClass", "group-frame")
+        log_content.setStyleSheet("")
+        lc_layout = QVBoxLayout(log_content)
+        lc_layout.setContentsMargins(12, 12, 12, 12)
+        self.tcp_log_text = QTextEdit()
+        self.tcp_log_text.setReadOnly(True)
+        self.tcp_log_text.setMaximumHeight(150)
+        self.tcp_log_text.setStyleSheet("font-family: 'Consolas', monospace; font-size: 12px; background-color: #0d1117;")
+        lc_layout.addWidget(self.tcp_log_text)
+
+        lfw_layout.addWidget(log_content)
+        parent_layout.addWidget(log_frame_w)
+
+        self.tcp_clients = []
         self.current_tcp_client = None
 
+    # ── TCP 信号处理 ──
+    def _on_tcp_log(self, msg):
+        self.tcp_log_text.append(msg)
+
+    def _on_tcp_message(self, addr, msg):
+        self.tcp_msg_text.append(f"[{addr}] {msg}")
+
+    # ── TCP 操作 ──
     def _start_tcp(self):
         from builtin_servers import tcp_manager
-        port = self.tcp_port_var.get()
-        tcp_manager.set_log_callback(self._tcp_log)
-        tcp_manager.set_message_callback(self._tcp_message_received)
+        port = self.tcp_port_spin.value()
+        tcp_manager.set_log_callback(lambda msg: self.tcp_log_signal.emit(msg))
+        tcp_manager.set_message_callback(lambda addr, msg: self.tcp_message_signal.emit(str(addr), msg))
         if tcp_manager.start(port=port):
-            self.tcp_status_label.config(text="运行中", foreground="green")
-            self.tcp_start_btn.config(state=tk.DISABLED)
-            self.tcp_stop_btn.config(state=tk.NORMAL)
-            # 启动客户端列表刷新
+            self.tcp_status_label.setText("运行中")
+            self.tcp_status_label.setStyleSheet("color: #27ae60; font-weight: 600; font-size: 14px;")
+            self.tcp_start_btn.setEnabled(False)
+            self.tcp_stop_btn.setEnabled(True)
             self._refresh_tcp_clients()
 
     def _stop_tcp(self):
         from builtin_servers import tcp_manager
         tcp_manager.stop()
-        self.tcp_status_label.config(text="未启动", foreground="red")
-        self.tcp_start_btn.config(state=tk.NORMAL)
-        self.tcp_stop_btn.config(state=tk.DISABLED)
-        self.tcp_clients_listbox.delete(0, tk.END)
+        self.tcp_status_label.setText("未启动")
+        self.tcp_status_label.setStyleSheet("color: #e74c3c; font-weight: 600; font-size: 14px;")
+        self.tcp_start_btn.setEnabled(True)
+        self.tcp_stop_btn.setEnabled(False)
+        self.tcp_clients_listbox.clear()
         self.tcp_clients.clear()
-
-    def _tcp_log(self, msg):
-        def add():
-            self.tcp_log_text.insert(tk.END, msg + "\n")
-            self.tcp_log_text.see(tk.END)
-        self.root.after(0, add)
-
-    def _tcp_message_received(self, addr, msg):
-        # 记录到右侧消息区
-        def add():
-            self.tcp_msg_text.insert(tk.END, f"[{addr}] {msg}\n")
-            self.tcp_msg_text.see(tk.END)
-        self.root.after(0, add)
-        # 刷新客户端列表（可能新客户端连接）
-        self._refresh_tcp_clients()
 
     def _refresh_tcp_clients(self):
         from builtin_servers import tcp_manager
-        # 获取当前客户端列表
-        clients = tcp_manager.clients.copy()  # [(conn, addr), ...]
-        # 更新 UI
-        def update():
-            self.tcp_clients_listbox.delete(0, tk.END)
-            self.tcp_clients = []
-            for conn, addr in clients:
-                addr_str = f"{addr[0]}:{addr[1]}"
-                self.tcp_clients_listbox.insert(tk.END, addr_str)
-                self.tcp_clients.append(addr_str)
-        self.root.after(0, update)
+        clients = tcp_manager.clients.copy()
+        self.tcp_clients_listbox.clear()
+        self.tcp_clients = []
+        for conn, addr in clients:
+            addr_str = f"{addr[0]}:{addr[1]}"
+            self.tcp_clients_listbox.addItem(addr_str)
+            self.tcp_clients.append(addr_str)
 
-    def _on_tcp_client_select(self, event):
-        sel = self.tcp_clients_listbox.curselection()
-        if sel:
-            self.current_tcp_client = self.tcp_clients[sel[0]]
+    def _on_tcp_client_select_row(self, row):
+        if row >= 0 and row < len(self.tcp_clients):
+            self.current_tcp_client = self.tcp_clients[row]
 
     def _tcp_send_to_client(self):
         if not self.current_tcp_client:
-            messagebox.showwarning("提示", "请先选择一个客户端")
+            QMessageBox.warning(self, "提示", "请先选择一个客户端")
             return
-        msg = self.tcp_send_entry.get().strip()
+        msg = self.tcp_send_entry.text().strip()
         if not msg:
             return
         from builtin_servers import tcp_manager
-        # 解析地址为元组
         ip, port = self.current_tcp_client.split(':')
         addr = (ip, int(port))
         if tcp_manager.send_to_client(addr, msg):
-            self.tcp_send_entry.delete(0, tk.END)
-            self._tcp_log(f"发送到 {self.current_tcp_client}: {msg}")
+            self.tcp_send_entry.clear()
+            self.tcp_log_signal.emit(f"发送到 {self.current_tcp_client}: {msg}")
         else:
-            messagebox.showerror("错误", "发送失败，客户端可能已断开")
+            QMessageBox.critical(self, "错误", "发送失败，客户端可能已断开")
 
 
 def main():
-    # 独立运行：从配置文件读取主题，若没有则使用默认
+    app = QApplication(sys.argv)
+    app.setStyle("Fusion")
+
     config_file = os.path.expanduser("~/.agent_config.json")
-    theme = "flatly"
+    theme = "dark"
     if os.path.exists(config_file):
         try:
             with open(config_file, 'r', encoding='utf-8') as f:
                 data = json.load(f)
-                theme = data.get("gui_theme", "flatly")
+                theme = data.get("gui_theme", "dark")
         except:
             pass
-    root = tb.Window(themename=theme)
-    app = TGHomeApp(root, theme=theme)
-    root.mainloop()
+
+    window = QMainWindow()
+    tg_app = TGHomeApp(root=window, theme=theme)
+    window.setCentralWidget(tg_app)
+    window.show()
+    sys.exit(app.exec())
 
 
 if __name__ == "__main__":

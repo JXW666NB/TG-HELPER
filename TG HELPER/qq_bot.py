@@ -268,10 +268,10 @@ class QQBotHandler:
                 full_input = f"{text}\n\n【系统指令】{instruction}"
             else:
                 full_input = text
-            if hasattr(self.gui, 'fun_mode') and self.gui.fun_mode.get():
-                self.gui.agent.run(full_input)
+            if hasattr(self.gui, 'fun_mode') and self.gui.fun_mode.isChecked():
+                self.gui.run_fun_mode(full_input)
             else:
-                self.gui.agent.run(full_input)
+                self.gui.run_agent(full_input)
             self.gui.agent.output_callback = original_callback
         except Exception as e:
             error_msg = f"AI 处理出错: {e}"

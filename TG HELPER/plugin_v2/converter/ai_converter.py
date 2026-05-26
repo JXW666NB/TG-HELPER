@@ -61,18 +61,19 @@ class AIConverter:
         return None
     
     def _validate_code(self, code: str) -> bool:
-        """AST 安全检查"""
+        """AST 安全检查（允许正常模块导入，仅禁止危险调用）"""
         try:
             tree = ast.parse(code)
-            # 禁止危险导入
+            # 禁止危险函数调用（eval/exec/compile/__import__）
             for node in ast.walk(tree):
-                if isinstance(node, ast.Import):
-                    for alias in node.names:
-                        if alias.name in ('os', 'subprocess', 'sys', 'shutil', 'socket'):
-                            return False
-                elif isinstance(node, ast.ImportFrom):
-                    if node.module in ('os', 'subprocess', 'sys', 'shutil', 'socket'):
+                if isinstance(node, ast.Call):
+                    func = node.func
+                    if isinstance(func, ast.Name) and func.id in ('eval', 'exec', 'compile', '__import__'):
                         return False
+                    # 禁止 os.system / subprocess.call 等
+                    if isinstance(func, ast.Attribute):
+                        if func.attr in ('system', 'popen', 'spawn', 'call', 'run', 'Popen'):
+                            return False
             return True
         except SyntaxError:
             return False

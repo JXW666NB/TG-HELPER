@@ -377,6 +377,17 @@ class PluginManagerV2:
         return results
 
     def shutdown(self):
+        # 先执行所有插件注册的 shutdown hooks
+        for plugin_id, info in list(self._plugins.items()):
+            host_api = info.get("host_api")
+            if host_api and hasattr(host_api, '_system_api'):
+                system_api = host_api._system_api
+                if hasattr(system_api, '_shutdown_hooks'):
+                    for hook in system_api._shutdown_hooks:
+                        try:
+                            hook()
+                        except Exception as e:
+                            print(f"[PluginManager] shutdown hook 执行失败 ({plugin_id}): {e}")
         for plugin_id in list(self._plugins.keys()):
             self.unload_plugin(plugin_id)
         self._event_bus.emit(SystemEvents.SYSTEM_SHUTDOWN, None, "system")

@@ -1,9 +1,7 @@
 # -*- coding: utf-8 -*-
 """
-主 GUI 界面 - 布局与核心交互
+主 GUI 界面 - 布局与核心交互 (PyQt6)
 """
-import tkinter as tk
-from tkinter import ttk, scrolledtext, messagebox, font, Toplevel
 import threading
 import os
 import sys
@@ -13,11 +11,19 @@ import requests
 import random
 import json
 from datetime import datetime
-from PIL import Image, ImageTk
-import ttkbootstrap as tb
-from ttkbootstrap.constants import *
+from io import BytesIO
+from PIL import Image
 
-from config import config, CONFIG_FILE
+from PyQt6.QtWidgets import (
+    QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
+    QLabel, QPushButton, QTextEdit, QScrollArea, QSplitter, QTabWidget,
+    QStatusBar, QToolBar, QFrame, QMessageBox, QCheckBox, QLineEdit,
+    QComboBox, QSpinBox, QFileDialog, QListWidget, QSizePolicy
+)
+from PyQt6.QtCore import Qt, QTimer, pyqtSignal, pyqtSlot, QObject, QThread, QSize
+from PyQt6.QtGui import QFont, QPixmap, QIcon, QColor, QPalette, QKeyEvent
+
+from config import config, banben, CONFIG_FILE
 from memory import Memory
 from tools import Tools
 from agent import AIAgent
@@ -32,30 +38,341 @@ from qq_bot import QQBotHandler
 from gui_handlers import bind_handlers
 from plugin_v2 import PluginManagerV2, HostAPIImpl, EventBus, SystemEvents
 from multi_agent_v2 import MultiAgentOrchestrator
-class AgentGUI:
-    def __init__(self, root):
-        self.root = root
-        self.root.title("TGAI v0.1.5")
-        self.root.geometry("1400x900")
-        self.root.minsize(1000, 700)
+
+DARK_QSS = """
+QMainWindow {
+    background-color: #1a1a2e;
+}
+QToolBar {
+    background-color: #16213e;
+    border: none;
+    spacing: 4px;
+    padding: 4px;
+}
+QToolBar QLabel {
+    color: #e8e8e8;
+}
+QToolBar QPushButton {
+    background-color: transparent;
+    color: #e8e8e8;
+    border: 1px solid #3a4a6b;
+    border-radius: 4px;
+    padding: 4px 10px;
+    font-size: 13px;
+}
+QToolBar QPushButton:hover {
+    background-color: #2a3a5b;
+}
+QToolBar QPushButton:pressed {
+    background-color: #0f1629;
+}
+QStatusBar {
+    background-color: #16213e;
+    color: #b0b0c0;
+    border-top: 1px solid #2a2a4a;
+    font-size: 13px;
+}
+QSplitter::handle {
+    background-color: #2a2a4a;
+    width: 4px;
+}
+QScrollArea {
+    border: none;
+    background-color: #1a1a2e;
+}
+QTextEdit {
+    border: 1px solid #2a2a4a;
+    border-radius: 4px;
+    padding: 6px;
+    background-color: #16213e;
+    color: #e8e8e8;
+    font-size: 14px;
+}
+QPushButton#sendBtn {
+    background-color: #4a90d9;
+    color: #ffffff;
+    border: none;
+    border-radius: 4px;
+    padding: 6px 16px;
+    font-size: 14px;
+    font-weight: bold;
+}
+QPushButton#sendBtn:hover {
+    background-color: #5aa0e9;
+}
+QPushButton#sendBtn:pressed {
+    background-color: #3a80c9;
+}
+QPushButton#stopBtn {
+    background-color: #d94a4a;
+    color: #ffffff;
+    border: none;
+    border-radius: 4px;
+    padding: 6px 16px;
+    font-size: 14px;
+    font-weight: bold;
+}
+QPushButton#stopBtn:hover {
+    background-color: #e95a5a;
+}
+QTabWidget::pane {
+    border: 1px solid #2a2a4a;
+    background-color: #1a1a2e;
+}
+QTabWidget::tab-bar {
+    left: 2px;
+}
+QTabBar::tab {
+    background-color: #222240;
+    color: #888898;
+    border: 1px solid #2a2a4a;
+    border-bottom: none;
+    padding: 6px 14px;
+    margin-right: 2px;
+    border-top-left-radius: 4px;
+    border-top-right-radius: 4px;
+}
+QTabBar::tab:selected {
+    background-color: #1a1a2e;
+    color: #e8e8e8;
+    border-bottom: 2px solid #4a90d9;
+}
+QTabBar::tab:hover:!selected {
+    background-color: #282848;
+}
+QLabel {
+    color: #e8e8e8;
+}
+QLineEdit {
+    background-color: #16213e;
+    color: #e8e8e8;
+    border: 1px solid #2a2a4a;
+    border-radius: 4px;
+    padding: 4px 8px;
+}
+QComboBox {
+    background-color: #16213e;
+    color: #e8e8e8;
+    border: 1px solid #2a2a4a;
+    border-radius: 4px;
+    padding: 4px 8px;
+}
+QComboBox QAbstractItemView {
+    background-color: #16213e;
+    color: #e8e8e8;
+    selection-background-color: #4a90d9;
+}
+QCheckBox {
+    color: #e8e8e8;
+}
+QRadioButton {
+    color: #e8e8e8;
+}
+QGroupBox {
+    color: #e8e8e8;
+    border: 1px solid #2a2a4a;
+    border-radius: 4px;
+    margin-top: 8px;
+    padding-top: 8px;
+}
+QGroupBox::title {
+    subcontrol-origin: margin;
+    left: 10px;
+    padding: 0 4px;
+}
+QTableWidget {
+    background-color: #16213e;
+    alternate-background-color: #1e1e38;
+    color: #e8e8e8;
+    gridline-color: #2a2a4a;
+    border: 1px solid #2a2a4a;
+    border-radius: 4px;
+}
+QTableWidget::item:selected {
+    background-color: #4a90d9;
+    color: white;
+}
+QHeaderView::section {
+    background-color: #222240;
+    color: #b0b0c0;
+    border: 1px solid #2a2a4a;
+    padding: 4px;
+    font-weight: bold;
+}
+QListWidget {
+    background-color: #16213e;
+    color: #e8e8e8;
+    border: 1px solid #2a2a4a;
+    border-radius: 4px;
+}
+QListWidget::item:selected {
+    background-color: #4a90d9;
+    color: white;
+}
+QProgressBar {
+    border: 1px solid #2a2a4a;
+    border-radius: 4px;
+    background-color: #16213e;
+    text-align: center;
+    color: #e8e8e8;
+}
+QProgressBar::chunk {
+    background-color: #4a90d9;
+    border-radius: 3px;
+}
+"""
+
+FLATLY_QSS = """
+QMainWindow {
+    background-color: #f8f9fa;
+}
+QToolBar {
+    background-color: #2c3e50;
+    border: none;
+    spacing: 4px;
+    padding: 4px;
+}
+QToolBar QLabel {
+    color: #ffffff;
+}
+QToolBar QPushButton {
+    background-color: transparent;
+    color: #ffffff;
+    border: 1px solid #4a6785;
+    border-radius: 4px;
+    padding: 4px 10px;
+    font-size: 13px;
+}
+QToolBar QPushButton:hover {
+    background-color: #3d566e;
+}
+QToolBar QPushButton:pressed {
+    background-color: #1a252f;
+}
+QStatusBar {
+    background-color: #ecf0f1;
+    color: #2c3e50;
+    border-top: 1px solid #dee2e6;
+    font-size: 13px;
+}
+QSplitter::handle {
+    background-color: #dee2e6;
+    width: 4px;
+}
+QScrollArea {
+    border: none;
+    background-color: #ffffff;
+}
+QTextEdit {
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    padding: 6px;
+    background-color: #ffffff;
+    font-size: 14px;
+}
+QPushButton#sendBtn {
+    background-color: #2c3e50;
+    color: #ffffff;
+    border: none;
+    border-radius: 4px;
+    padding: 6px 16px;
+    font-size: 14px;
+    font-weight: bold;
+}
+QPushButton#sendBtn:hover {
+    background-color: #3d566e;
+}
+QPushButton#sendBtn:pressed {
+    background-color: #1a252f;
+}
+QPushButton#stopBtn {
+    background-color: #e74c3c;
+    color: #ffffff;
+    border: none;
+    border-radius: 4px;
+    padding: 6px 16px;
+    font-size: 14px;
+    font-weight: bold;
+}
+QPushButton#stopBtn:hover {
+    background-color: #c0392b;
+}
+QTabWidget::pane {
+    border: 1px solid #dee2e6;
+    background-color: #ffffff;
+}
+QTabWidget::tab-bar {
+    left: 2px;
+}
+QTabBar::tab {
+    background-color: #ecf0f1;
+    color: #7f8c8d;
+    border: 1px solid #dee2e6;
+    border-bottom: none;
+    padding: 6px 14px;
+    margin-right: 2px;
+    border-top-left-radius: 4px;
+    border-top-right-radius: 4px;
+}
+QTabBar::tab:selected {
+    background-color: #ffffff;
+    color: #2c3e50;
+    border-bottom: 2px solid #2c3e50;
+}
+QTabBar::tab:hover:!selected {
+    background-color: #dfe6e9;
+}
+"""
+
+
+class ChatTextEdit(QTextEdit):
+    returnPressed = pyqtSignal()
+
+    def keyPressEvent(self, event: QKeyEvent):
+        if (event.key() == Qt.Key.Key_Return and
+                not (event.modifiers() & Qt.KeyboardModifier.ShiftModifier)):
+            self.returnPressed.emit()
+        else:
+            super().keyPressEvent(event)
+
+
+class AgentGUI(QMainWindow):
+    _bubble_signal = pyqtSignal(str, bool, object)
+    _system_signal = pyqtSignal(str, str)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.root = self
+        self._bubble_signal.connect(self._on_bubble_signal)
+        self._system_signal.connect(self._on_system_signal)
+
+        self.setWindowTitle(f"TGAI {banben}")
+        self.resize(1400, 900)
+        self.setMinimumSize(1000, 700)
 
         theme_name = getattr(config, 'gui_theme', 'flatly')
-        self.style = tb.Style(theme=theme_name)
-        self.style.theme_use()
+        self.current_theme = theme_name
+        self.setStyleSheet(FLATLY_QSS)
 
         self.last_sent_message_id = None
-        self.agent_running = False           # 标记 AI 是否正在工作
-        self.agent_stop_event = threading.Event()  # 中断事件
-        self.font = font.Font(family="微软雅黑", size=10)
-        self.debug_mode = tk.BooleanVar(value=config.debug_mode)
-        self.fun_mode = tk.BooleanVar(value=getattr(config, 'fun_mode_enabled', False))
+        self.agent_running = False
+        self.agent_stop_event = threading.Event()
+        self.font = QFont("微软雅黑", 10)
+        self._animating = False
+        self._send_action = "send"
+
+        self.debug_mode = QCheckBox()
+        self.debug_mode.setChecked(config.debug_mode)
+        self.fun_mode = QCheckBox()
+        self.fun_mode.setChecked(getattr(config, 'fun_mode_enabled', False))
+
         self.qq_handler = None
         self.settings_visible = True
         self.settings_width = 400
 
         self.personality_name = getattr(config, 'current_personality', 'TGAI')
         self.personality_dir = getattr(config, 'personality_dir', './AI人格')
-        self.current_persona_name = self.personality_name   # 当前人格名称（状态栏用）
+        self.current_persona_name = self.personality_name
         self.init_default_personalities()
         self.load_personalities()
 
@@ -85,10 +402,10 @@ class AgentGUI:
                            task_scheduler=None,
                            gui=self)
         self.skill_manager = SkillManager(getattr(config, 'skills_dirs', ["./skills"]))
-        # ========== 初始化 AI Agent ==========
+
         self.agent = AIAgent(config, self.memory, self.tools, skill_manager=self.skill_manager)
-        self.agent.output_callback = self.display_assistant_message          # AI 正常回复
-        self.agent.system_output_callback = self.display_system_message     # 系统提示（灰色气泡）
+        self.agent.output_callback = self.display_assistant_message
+        self.agent.system_output_callback = self.display_system_message
 
         self.memory.set_ai_summarize_callback(self._memory_summarize_callback)
         self.memory.set_ai_reflection_callback(self._memory_reflection_callback)
@@ -97,12 +414,10 @@ class AgentGUI:
         iot_manager.set_ai_trigger_callback(self.on_sensor_trigger)
         iot_manager.set_qq_send_callback(self.send_qq_message)
 
-        self.inspect_interval_var = tk.IntVar(value=3600)
-        # 根据配置决定是否启动巡检器，不再无脑启动
+        self.inspect_interval_var = 3600
         if config.inspector_enabled:
             self.start_inspector()
         else:
-            # 确保回调已设置，即使不启动巡检器，手动巡检依然可用
             inspector.set_ai_callback(self._inspector_ai_callback)
 
         self.task_scheduler = TaskScheduler(
@@ -111,12 +426,11 @@ class AgentGUI:
         )
         self.task_scheduler.start()
         self.tools.task_scheduler = self.task_scheduler
-        # 多Agent模式组件
+
         self.multi_agent_enabled = getattr(config, 'multi_agent_enabled', False)
         self.multi_agent_orchestrator = MultiAgentOrchestrator(self)
         self.multi_agent_btn = None
         self.task_list_window = None
-        # 在 load_personalities 调用之后
         if self.multi_agent_enabled:
             planner_p = getattr(config, 'multi_agent_planner_persona', 'TGAI')
             worker_p = getattr(config, 'multi_agent_worker_persona', '艾依')
@@ -124,73 +438,57 @@ class AgentGUI:
             try:
                 self.multi_agent_orchestrator.configure(True, planner_p, worker_p, reviewer_p)
             except Exception as e:
-                messagebox.showerror("多Agent配置错误", str(e))
-        # ========== 初始化新版插件系统 V2 ==========
+                QMessageBox.critical(self, "多Agent配置错误", str(e))
+
         self.plugin_manager_v2 = PluginManagerV2()
         self.plugin_manager_v2.set_gui_instance(self)
         self.plugin_manager_v2.set_memory_instance(self.memory)
         self.plugin_manager_v2.set_agent_instance(self.agent)
         self.plugin_manager_v2.set_tools_instance(self.tools)
         self.plugin_manager_v2.set_config_instance(config)
-        self.plugin_manager_v2.set_debug_mode(self.debug_mode.get())
+        self.plugin_manager_v2.set_debug_mode(self.debug_mode.isChecked())
 
-        # 加载新版插件
         loaded_v2_plugins = self.plugin_manager_v2.load_all_plugins()
         if loaded_v2_plugins:
             print(f"[MainGUI] 已加载 {len(loaded_v2_plugins)} 个 V2 插件: {loaded_v2_plugins}")
 
-        # 获取事件总线
         self.event_bus = self.plugin_manager_v2.get_event_bus()
 
-        # 注册自定义 AI 调用处理器（供插件 call_ai 使用）
         def handle_custom_ai_call(event):
             data = event.data
             prompt = data.get("prompt", "")
             system_prompt = data.get("system_prompt", "")
             callback = data.get("callback")
-            # 调用 agent
             original_cb = self.agent.output_callback
             response = [None]
+
             def capture(msg):
                 response[0] = msg
-            self.agent.output_callback = capture
-            self.agent.run(prompt)  # 内部已处理 system_prompt
-            self.agent.output_callback = original_cb
-            if callback:
-                callback(response[0])
+
+            def run_in_thread():
+                self.agent.output_callback = capture
+                self.agent.stop_event = self.agent_stop_event
+                self.agent.run(prompt)
+                self.agent.output_callback = original_cb
+                if callback:
+                    QTimer.singleShot(0, lambda: callback(response[0]))
+
+            threading.Thread(target=run_in_thread, daemon=True).start()
+
         self.event_bus.subscribe("agent.custom_call", handle_custom_ai_call, plugin_id="system")
-    
-        # ========== 在 UI 就绪时触发事件 ==========
+
         def on_ui_ready():
             self.event_bus.emit(SystemEvents.UI_READY, {"gui": self}, "system")
-        self.root.after(100, on_ui_ready)
+
+        QTimer.singleShot(100, on_ui_ready)
 
         self.local_model_manager = LocalModelManager()
         bind_handlers(self)
 
-        # ---------- 构建界面 ----------
-        self.main_container = tb.Frame(self.root)
-        self.main_container.pack(fill=BOTH, expand=True, padx=5, pady=5)
-
         self._create_toolbar()
+        self._create_central_area()
+        self._create_statusbar()
 
-        self.content_frame = tk.PanedWindow(self.main_container, orient=tk.HORIZONTAL, sashrelief=tk.RAISED, sashwidth=5)
-        self.content_frame.pack(fill=BOTH, expand=True)
-
-        self.chat_frame = tb.Frame(self.content_frame)
-        self.content_frame.add(self.chat_frame, stretch="always", minsize=400)
-
-        self._create_chat_area()
-
-        self.settings_frame = tb.Frame(self.content_frame, width=self.settings_width)
-        self.content_frame.add(self.settings_frame, stretch="never", minsize=300)
-
-        self._create_settings_area()
-
-        self.status_label = tb.Label(self.root, text="就绪", relief=SUNKEN, anchor=W)
-        self.status_label.pack(side=BOTTOM, fill=X)
-
-        # 创建设置页面
         self.create_api_tab()
         self.create_qq_tab()
         self.create_security_tab()
@@ -202,26 +500,67 @@ class AgentGUI:
         self.create_local_model_tab()
         self.create_model_selector_tab()
         self.create_multi_agent_tab()
-        
+
         self.display_assistant_message("你好世界！今天可以帮到什么吗？")
 
+        # 启动后自动内存优化（延迟2秒，等界面渲染完毕）
+        QTimer.singleShot(2000, self._startup_optimize)
+
         if config.qq_enabled:
-            self.start_qq_bot()
+            QTimer.singleShot(500, self.start_qq_bot)
 
         self.update_current_personality_display()
-        self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
 
-    # ==================== 核心方法 ====================
+    def schedule_on_main(self, callback):
+        QTimer.singleShot(0, callback)
+
+    def closeEvent(self, event):
+        self.on_closing()
+        event.accept()
+
+    def _create_central_area(self):
+        central = QWidget()
+        self.setCentralWidget(central)
+        main_layout = QVBoxLayout(central)
+        main_layout.setContentsMargins(5, 5, 5, 5)
+        main_layout.setSpacing(0)
+
+        self.content_frame = QSplitter(Qt.Orientation.Horizontal)
+        main_layout.addWidget(self.content_frame, 1)
+
+        self.chat_frame = QWidget()
+        self.content_frame.addWidget(self.chat_frame)
+
+        self._create_chat_area()
+
+        self.settings_frame = QWidget()
+        self.settings_frame.setMinimumWidth(300)
+        self.content_frame.addWidget(self.settings_frame)
+
+        self._create_settings_area()
+
+        self.content_frame.setSizes([1000, self.settings_width])
+        self.content_frame.setStretchFactor(0, 1)
+        self.content_frame.setStretchFactor(1, 0)
+
+    def _create_statusbar(self):
+        self.status_label = QStatusBar()
+        self.status_label.showMessage("就绪")
+        self.setStatusBar(self.status_label)
 
     def change_theme(self, theme_name):
-        self.style.theme_use(theme_name)
         self.current_theme = theme_name
         config.gui_theme = theme_name
         self._save_all_config()
-        if hasattr(self, '_tg_home_window') and self._tg_home_window.winfo_exists():
+        dark_themes = {"darkly", "cyborg", "vapor", "solar", "superhero"}
+        if theme_name in dark_themes:
+            self.setStyleSheet(DARK_QSS)
+        else:
+            self.setStyleSheet(FLATLY_QSS)
+        if hasattr(self, '_tg_home_window') and self._tg_home_window is not None:
             if hasattr(self._tg_home_app, 'apply_theme'):
                 self._tg_home_app.apply_theme(theme_name)
-                
+
     def _memory_reflection_callback(self, dialog_text: str) -> str:
         prompt = f"请从以下对话中提炼出关于用户的重要信息、偏好、决策或事实，用简洁的要点形式输出（每条一行），不要超过200字：\n\n{dialog_text}"
         messages = [{"role": "user", "content": prompt}]
@@ -271,145 +610,199 @@ class AgentGUI:
 
     def display_system_message(self, message, source="sensor"):
         if threading.current_thread() is threading.main_thread():
-            self._create_system_bubble(message)
-            self.canvas.yview_moveto(1)
+            try:
+                self._create_system_bubble(message)
+                self._scroll_chat_to_bottom()
+            except Exception as e:
+                print(f"[GUI] 创建系统消息气泡失败(主线程): {e}")
         else:
-            self.root.after(0, lambda: self._create_system_bubble(message))
-            self.root.after(0, lambda: self.canvas.yview_moveto(1))
+            self._system_signal.emit(message, source)
+
+    @pyqtSlot(str, str)
+    def _on_system_signal(self, message, source):
+        try:
+            self._create_system_bubble(message)
+            self._scroll_chat_to_bottom()
+        except Exception as e:
+            print(f"[GUI] 创建系统消息气泡失败(信号槽): {e}")
 
     def _create_system_bubble(self, text):
-        msg_frame = tb.Frame(self.message_frame)
-        msg_frame.pack(fill=X, pady=3, padx=10)
-        bubble = tb.Label(msg_frame, text=text, wraplength=500, justify=LEFT,
-                          background="#555555", foreground="#ffffff",
-                          font=self.font, padding=10, relief=FLAT)
-        bubble.pack(anchor=W)
+        frame = QFrame(self.message_container)
+        frame.setFrameShape(QFrame.Shape.NoFrame)
+        layout = QHBoxLayout(frame)
+        layout.setContentsMargins(10, 3, 10, 3)
+        bubble = QLabel(text)
+        bubble.setWordWrap(True)
+        bubble.setMaximumWidth(550)
+        bubble.setStyleSheet(
+            "background-color: #555555; color: #ffffff; padding: 10px; "
+            "border-radius: 8px; font-size: 13px;"
+        )
+        bubble.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Minimum)
+        layout.addWidget(bubble)
+        layout.addStretch()
+        self._insert_bubble(frame)
+
+    def _scroll_chat_to_bottom(self):
+        scrollbar = self.scroll_area.verticalScrollBar()
+        scrollbar.setValue(scrollbar.maximum())
+
+    def _insert_bubble(self, frame):
+        count = self.message_layout.count()
+        if count > 0:
+            stretch_item = self.message_layout.takeAt(count - 1)
+            if stretch_item.spacerItem():
+                del stretch_item
+        self.message_layout.addWidget(frame)
+        self.message_layout.addStretch()
+        QTimer.singleShot(10, self._scroll_chat_to_bottom)
 
     def _create_toolbar(self):
-        toolbar = tb.Frame(self.main_container, bootstyle="secondary")
-        toolbar.pack(fill=X, pady=(0, 5))
+        toolbar = QToolBar()
+        toolbar.setMovable(False)
+        toolbar.setFloatable(False)
+        toolbar.setIconSize(QSize(20, 20))
+        self.addToolBar(toolbar)
 
-        self.avatar_label = tb.Label(toolbar, text="头像", width=40)
-        self.avatar_label.pack(side=LEFT, padx=5)
-        self.personality_label = tb.Label(toolbar, text=f"当前人格: {self.personality_name}",
-                                          font=("微软雅黑", 12, "bold"), bootstyle="inverse-secondary")
-        self.personality_label.pack(side=LEFT, padx=5)
+        self.avatar_label = QLabel("头像")
+        self.avatar_label.setFixedSize(32, 32)
+        self.avatar_label.setStyleSheet("border-radius: 4px; border: 1px solid #4a6785;")
+        toolbar.addWidget(self.avatar_label)
 
-        btn_frame = tb.Frame(toolbar)
-        tb.Button(btn_frame, text="🏠 TG Home",
-                  command=self.open_tg_home,
-                  bootstyle="secondary-outline").pack(side=LEFT, padx=2)
-        btn_frame.pack(side=RIGHT, padx=5)
+        self.personality_label = QLabel(f"当前人格: {self.personality_name}")
+        self.personality_label.setStyleSheet(
+            "font-size: 14px; font-weight: bold; color: #ffffff; padding: 0 8px;"
+        )
+        toolbar.addWidget(self.personality_label)
 
-        self.toggle_settings_btn = tb.Button(btn_frame, text="⚙️ 收起设置",
-                                             command=self.toggle_settings,
-                                             bootstyle="secondary-outline")
-        self.toggle_settings_btn.pack(side=LEFT, padx=2)
+        spacer = QWidget()
+        spacer.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        toolbar.addWidget(spacer)
 
-        tb.Button(btn_frame, text="🧹 清屏",
-                  command=self.clear_chat,
-                  bootstyle="secondary-outline").pack(side=LEFT, padx=2)
+        btn_frame = QWidget()
+        btn_layout = QHBoxLayout(btn_frame)
+        btn_layout.setContentsMargins(0, 0, 0, 0)
+        btn_layout.setSpacing(4)
 
-        self.fun_mode_btn = tb.Button(btn_frame, text="🔥 热闹模式: 关" if not self.fun_mode.get() else "🔥 热闹模式: 开",
-                                      command=self.toggle_fun_mode,
-                                      bootstyle="secondary-outline")
-        self.fun_mode_btn.pack(side=LEFT, padx=2)
-        self.multi_agent_btn = tb.Button(btn_frame, text="📋 查看多Agent任务列表",
-                                         command=self.show_task_list_window,
-                                         bootstyle="info-outline")
+        tg_home_btn = QPushButton("🏠 TG Home")
+        tg_home_btn.clicked.connect(self.open_tg_home)
+        btn_layout.addWidget(tg_home_btn)
+
+        self.toggle_settings_btn = QPushButton("⚙️ 收起设置")
+        self.toggle_settings_btn.clicked.connect(self.toggle_settings)
+        btn_layout.addWidget(self.toggle_settings_btn)
+
+        clear_btn = QPushButton("🧹 清屏")
+        clear_btn.clicked.connect(self.clear_chat)
+        btn_layout.addWidget(clear_btn)
+
+        self.fun_mode_btn = QPushButton(
+            "🔥 热闹模式: 关" if not self.fun_mode.isChecked() else "🔥 热闹模式: 开"
+        )
+        self.fun_mode_btn.clicked.connect(self.toggle_fun_mode)
+        btn_layout.addWidget(self.fun_mode_btn)
+
+        self.multi_agent_btn = QPushButton("📋 查看多Agent任务列表")
+        self.multi_agent_btn.clicked.connect(self.show_task_list_window)
+        self.multi_agent_btn.setStyleSheet(
+            "QPushButton { color: #3498db; border-color: #3498db; }"
+        )
         if self.multi_agent_enabled:
-            self.multi_agent_btn.pack(side=LEFT, padx=2)  # 工具栏按钮
-        tb.Button(btn_frame, text="❓ 关于",
-                  command=self.show_about_dialog,
-                  bootstyle="secondary-outline").pack(side=LEFT, padx=2)
+            btn_layout.addWidget(self.multi_agent_btn)
+
+        about_btn = QPushButton("❓ 关于")
+        about_btn.clicked.connect(self.show_about_dialog)
+        btn_layout.addWidget(about_btn)
+
+        toolbar.addWidget(btn_frame)
 
     def _create_chat_area(self):
-        msg_container = tb.Frame(self.chat_frame)
-        msg_container.pack(fill=BOTH, expand=True, pady=5)
+        layout = QVBoxLayout(self.chat_frame)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
 
-        self.canvas = tk.Canvas(msg_container, bg=self.style.colors.bg, highlightthickness=0)
-        self.scrollbar = ttk.Scrollbar(msg_container, orient=VERTICAL, command=self.canvas.yview)
-        self.canvas.configure(yscrollcommand=self.scrollbar.set)
-        self.scrollbar.pack(side=RIGHT, fill=Y)
-        self.canvas.pack(side=LEFT, fill=BOTH, expand=True)
+        self.scroll_area = QScrollArea()
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
 
-        self.message_frame = tb.Frame(self.canvas)
-        self.canvas_window = self.canvas.create_window((0, 0), window=self.message_frame, anchor=NW)
-        self.message_frame.bind("<Configure>", self._on_frame_configure)
-        self.canvas.bind("<Configure>", self._on_canvas_configure)
+        self.message_container = QWidget()
+        self.message_container.setObjectName("messageContainer")
+        self.message_layout = QVBoxLayout(self.message_container)
+        self.message_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+        self.message_layout.addStretch()
+        self.scroll_area.setWidget(self.message_container)
 
-        input_frame = tb.Frame(self.chat_frame)
-        input_frame.pack(fill=X, pady=5)
+        layout.addWidget(self.scroll_area, 1)
 
-        self.input_text = scrolledtext.ScrolledText(input_frame, wrap=tk.WORD, height=5, font=self.font)
-        self.input_text.pack(side=LEFT, fill=BOTH, expand=True, padx=(0, 5))
-        self.input_text.bind("<Return>", self.send_message)
-        self.input_text.bind("<Shift-Return>", lambda e: self.input_text.insert(tk.INSERT, "\n"))
+        input_frame = QWidget()
+        input_layout = QHBoxLayout(input_frame)
+        input_layout.setContentsMargins(0, 5, 0, 5)
+        input_layout.setSpacing(5)
 
-        self.send_btn = tb.Button(input_frame, text="发送", width=8, bootstyle="primary", command=self.send_message)
-        self.send_btn.pack(side=RIGHT, fill=Y)
+        self.input_text = ChatTextEdit()
+        self.input_text.setMaximumHeight(120)
+        self.input_text.setMinimumHeight(60)
+        self.input_text.setPlaceholderText("输入消息...")
+        self.input_text.returnPressed.connect(self.send_message)
+        input_layout.addWidget(self.input_text, 1)
+
+        self.send_btn = QPushButton("发送")
+        self.send_btn.setObjectName("sendBtn")
+        self.send_btn.setFixedWidth(80)
+        self.send_btn.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
+        self.send_btn.clicked.connect(self.send_message)
+        input_layout.addWidget(self.send_btn)
+
+        layout.addWidget(input_frame)
 
     def _create_settings_area(self):
-        self.settings_canvas = tk.Canvas(self.settings_frame, highlightthickness=0)
-        self.settings_scrollbar = ttk.Scrollbar(self.settings_frame, orient=VERTICAL,
-                                                command=self.settings_canvas.yview)
-        self.settings_canvas.configure(yscrollcommand=self.settings_scrollbar.set)
-        self.settings_scrollbar.pack(side=RIGHT, fill=Y)
-        self.settings_canvas.pack(side=LEFT, fill=BOTH, expand=True)
+        layout = QVBoxLayout(self.settings_frame)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
 
-        self.settings_inner = tb.Frame(self.settings_canvas)
-        self.settings_window = self.settings_canvas.create_window((0, 0), window=self.settings_inner, anchor=NW)
-        self.settings_inner.bind("<Configure>", self._on_settings_inner_configure)
-        self.settings_canvas.bind("<Configure>", self._on_settings_canvas_configure)
-        self.settings_canvas.bind_all("<MouseWheel>", self._on_settings_mousewheel)
+        self.settings_scroll = QScrollArea()
+        self.settings_scroll.setWidgetResizable(True)
+        self.settings_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
 
-        self.notebook = tb.Notebook(self.settings_inner, bootstyle="secondary")
-        self.notebook.pack(fill=BOTH, expand=True, padx=2, pady=2)
-        self.notebook.bind("<<NotebookTabChanged>>", self._on_tab_changed)
+        self.settings_inner = QWidget()
+        settings_inner_layout = QVBoxLayout(self.settings_inner)
+        settings_inner_layout.setContentsMargins(2, 2, 2, 2)
+        settings_inner_layout.setSpacing(0)
 
-    def _on_settings_inner_configure(self, event=None):
-        self.settings_canvas.configure(scrollregion=self.settings_canvas.bbox("all"))
+        self.notebook = QTabWidget()
+        self.notebook.setTabPosition(QTabWidget.TabPosition.North)
+        self.notebook.setElideMode(Qt.TextElideMode.ElideNone)
+        self.notebook.setUsesScrollButtons(True)
+        settings_inner_layout.addWidget(self.notebook)
 
-    def _on_settings_canvas_configure(self, event):
-        width = event.width - 5 if event.width > 25 else event.width
-        self.settings_canvas.itemconfig(self.settings_window, width=width)
-
-    def _on_tab_changed(self, event=None):
-        self.settings_inner.after(50, self._on_settings_inner_configure)
-
-    def _on_settings_mousewheel(self, event):
-        self.settings_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+        self.settings_scroll.setWidget(self.settings_inner)
+        layout.addWidget(self.settings_scroll)
 
     def toggle_settings(self):
         if self.settings_visible:
-            try:
-                info = self.content_frame.paneconfig(self.settings_frame)
-                if info and 'width' in info and info['width']:
-                    self.settings_width = int(info['width'][0])
-            except:
-                pass
-            self.content_frame.forget(self.settings_frame)
-            self.toggle_settings_btn.config(text="⚙️ 展开设置")
+            self.settings_frame.hide()
+            self.toggle_settings_btn.setText("⚙️ 展开设置")
             self.settings_visible = False
         else:
-            self.content_frame.add(self.settings_frame, minsize=300, width=self.settings_width)
-            self.toggle_settings_btn.config(text="⚙️ 收起设置")
+            self.settings_frame.show()
+            self.toggle_settings_btn.setText("⚙️ 收起设置")
             self.settings_visible = True
-            self.root.after(100, self._on_settings_inner_configure)
 
     def toggle_fun_mode(self):
-        current = self.fun_mode.get()
-        self.fun_mode.set(not current)
-        self.fun_mode_btn.config(text="🔥 热闹模式: 开" if self.fun_mode.get() else "🔥 热闹模式: 关")
+        current = self.fun_mode.isChecked()
+        self.fun_mode.setChecked(not current)
+        self.fun_mode_btn.setText(
+            "🔥 热闹模式: 开" if self.fun_mode.isChecked() else "🔥 热闹模式: 关"
+        )
 
-    def _on_frame_configure(self, event):
-        self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+    def _on_frame_configure(self, event=None):
+        pass
 
-    def _on_canvas_configure(self, event):
-        self.canvas.itemconfig(self.canvas_window, width=event.width)
+    def _on_canvas_configure(self, event=None):
+        pass
 
     def update_current_personality_display(self):
-        self.personality_label.config(text=f"当前人格: {self.personality_name}")
+        self.personality_label.setText(f"当前人格: {self.personality_name}")
         avatar_path = None
         for p in self.personalities:
             if p['name'] == self.personality_name:
@@ -417,65 +810,82 @@ class AgentGUI:
                 break
         if avatar_path and os.path.exists(avatar_path):
             try:
-                img = Image.open(avatar_path)
-                img = img.resize((32, 32), Image.Resampling.LANCZOS)
-                photo = ImageTk.PhotoImage(img)
-                self.avatar_label.config(image=photo)
-                self.avatar_label.image = photo
-            except:
-                self.avatar_label.config(text="头像")
+                pixmap = QPixmap(avatar_path).scaled(
+                    32, 32, Qt.AspectRatioMode.KeepAspectRatio,
+                    Qt.TransformationMode.SmoothTransformation
+                )
+                if not pixmap.isNull():
+                    self.avatar_label.setPixmap(pixmap)
+                else:
+                    self.avatar_label.setText("头像")
+            except Exception:
+                self.avatar_label.setText("头像")
         else:
-            self.avatar_label.config(text="头像")
+            self.avatar_label.setText("头像")
 
     def _create_message_bubble(self, text, is_user=False, avatar_path=None):
-        msg_frame = tb.Frame(self.message_frame)
-        msg_frame.pack(fill=X, pady=3, padx=10)
+        frame = QFrame(self.message_container)
+        frame.setFrameShape(QFrame.Shape.NoFrame)
+        outer_layout = QHBoxLayout(frame)
+        outer_layout.setContentsMargins(10, 3, 10, 3)
 
-        if is_user:
-            avatar_side = RIGHT
-            bubble_side = LEFT
-            bubble_color = "#DCF8C6"
-        else:
-            avatar_side = LEFT
-            bubble_side = RIGHT
-            bubble_color = "#E3F2FD"
-
-        avatar_frame = tb.Frame(msg_frame, width=40, height=40)
-        avatar_frame.pack(side=avatar_side, anchor=N, padx=5)
-        avatar_frame.pack_propagate(False)
+        avatar_label = QLabel()
+        avatar_label.setFixedSize(40, 40)
+        avatar_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        avatar_label.setStyleSheet("border-radius: 4px;")
 
         if avatar_path and os.path.exists(avatar_path):
             try:
-                img = Image.open(avatar_path)
-                img = img.resize((36, 36), Image.Resampling.LANCZOS)
-                photo = ImageTk.PhotoImage(img)
-                avatar = tb.Label(avatar_frame, image=photo)
-                avatar.image = photo
-                avatar.pack(expand=True)
-            except:
-                avatar = tb.Label(avatar_frame, text="AI" if not is_user else "用户",
-                                  font=("微软雅黑", 8), bootstyle="inverse-primary")
-                avatar.pack(expand=True)
+                pixmap = QPixmap(avatar_path).scaled(
+                    36, 36, Qt.AspectRatioMode.KeepAspectRatio,
+                    Qt.TransformationMode.SmoothTransformation
+                )
+                if not pixmap.isNull():
+                    avatar_label.setPixmap(pixmap)
+                else:
+                    avatar_label.setText("AI" if not is_user else "用户")
+            except Exception:
+                avatar_label.setText("AI" if not is_user else "用户")
         else:
-            avatar = tb.Label(avatar_frame, text="AI" if not is_user else "用户",
-                              font=("微软雅黑", 8), bootstyle="inverse-primary")
-            avatar.pack(expand=True)
+            avatar_label.setText("AI" if not is_user else "用户")
 
-        bubble_container = tb.Frame(msg_frame)
-        bubble_container.pack(side=bubble_side if is_user else avatar_side,
-                              fill=BOTH, expand=True, padx=5)
+        bubble = QLabel(text)
+        bubble.setWordWrap(True)
+        bubble.setMaximumWidth(550)
+        bubble.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Minimum)
 
-        bubble = tb.Label(bubble_container, text=text, wraplength=500, justify=LEFT,
-                          background=bubble_color, foreground="#000000",
-                          font=self.font, padding=10, relief=FLAT)
-        bubble.pack(anchor=E if is_user else W)
-        bubble.configure(bootstyle="light")
+        if is_user:
+            bubble_color = "#DCF8C6"
+            bubble.setAlignment(Qt.AlignmentFlag.AlignLeft)
+            outer_layout.addStretch()
+            outer_layout.addWidget(bubble)
+            outer_layout.addWidget(avatar_label)
+        else:
+            bubble_color = "#E3F2FD"
+            bubble.setAlignment(Qt.AlignmentFlag.AlignLeft)
+            outer_layout.addWidget(avatar_label)
+            outer_layout.addWidget(bubble)
+            outer_layout.addStretch()
+
+        bubble_style = (
+            f"background-color: {bubble_color}; color: #000000; "
+            "padding: 10px; border-radius: 8px; font-size: 13px;"
+        )
         if hasattr(self, '_plugin_styles'):
             if is_user and 'bubble_bg_user' in self._plugin_styles:
-                bubble.configure(background=self._plugin_styles['bubble_bg_user'])
+                bubble_style = (
+                    f"background-color: {self._plugin_styles['bubble_bg_user']}; "
+                    "color: #000000; padding: 10px; border-radius: 8px; font-size: 13px;"
+                )
             elif not is_user and 'bubble_bg_ai' in self._plugin_styles:
-                bubble.configure(background=self._plugin_styles['bubble_bg_ai'])
-        return msg_frame
+                bubble_style = (
+                    f"background-color: {self._plugin_styles['bubble_bg_ai']}; "
+                    "color: #000000; padding: 10px; border-radius: 8px; font-size: 13px;"
+                )
+        bubble.setStyleSheet(bubble_style)
+
+        self._insert_bubble(frame)
+        return frame
 
     def display_assistant_message(self, message, source="local"):
         avatar_path = None
@@ -491,36 +901,31 @@ class AgentGUI:
     def _display_message(self, message, is_user=False, avatar_path=None, source="local"):
         if threading.current_thread() is threading.main_thread():
             try:
-                if self.root.winfo_exists():
-                    self._create_message_bubble(message, is_user, avatar_path)
-                    self.canvas.yview_moveto(1)
-            except (tk.TclError, RuntimeError):
-                pass
+                self._create_message_bubble(message, is_user, avatar_path)
+            except Exception as e:
+                print(f"[GUI] 创建消息气泡失败(主线程): {e}")
         else:
-            def add():
-                try:
-                    if self.root.winfo_exists():
-                        self._create_message_bubble(message, is_user, avatar_path)
-                        self.canvas.yview_moveto(1)
-                except (tk.TclError, RuntimeError):
-                    pass
-            try:
-                if self.root.winfo_exists():
-                    self.root.after(0, add)
-            except RuntimeError:
-                pass
+            self._bubble_signal.emit(message, is_user, avatar_path)
+
+    @pyqtSlot(str, bool, object)
+    def _on_bubble_signal(self, message, is_user, avatar_path):
+        try:
+            self._create_message_bubble(message, is_user, avatar_path)
+        except Exception as e:
+            print(f"[GUI] 创建消息气泡失败(信号槽): {e}")
 
     def update_status(self, message):
-        def _update():
-            try:
-                self.status_label.config(text=message)
-            except:
-                pass
-        self.root.after(0, _update)
+        self.status_label.showMessage(message)
 
     def clear_chat(self):
-        for widget in self.message_frame.winfo_children():
-            widget.destroy()
+        while self.message_layout.count():
+            item = self.message_layout.takeAt(0)
+            widget = item.widget()
+            if widget:
+                widget.deleteLater()
+            elif item.spacerItem():
+                pass
+        self.message_layout.addStretch()
 
     def request_confirmation(self, prompt):
         result = [False]
@@ -528,12 +933,17 @@ class AgentGUI:
 
         def ask():
             try:
-                ans = messagebox.askyesno("确认", prompt)
-                result[0] = ans
-            except:
+                ans = QMessageBox.question(
+                    self, "确认", prompt,
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                    QMessageBox.StandardButton.No
+                )
+                result[0] = (ans == QMessageBox.StandardButton.Yes)
+            except Exception:
                 result[0] = False
             event.set()
-        self.root.after(0, ask)
+
+        QTimer.singleShot(0, ask)
         event.wait()
         return result[0]
 
@@ -545,45 +955,62 @@ class AgentGUI:
     def _animate_dots(self, count=0):
         if not self._animating:
             return
-        dots = "." * (count % 4)  # 0-3 个点循环
+        dots = "." * (count % 4)
         name = self.personality_name or "AI"
-        self.status_label.config(text=f"{name} 正在工作中{dots}")
-        self.root.after(500, self._animate_dots, count + 1)
+        self.status_label.showMessage(f"{name} 正在工作中{dots}")
+        QTimer.singleShot(500, lambda: self._animate_dots(count + 1))
 
     def _stop_agent_animation(self):
         self._animating = False
-        self.status_label.config(text="就绪")
+        self.status_label.showMessage("就绪")
         self.agent_running = False
+
     def request_stop_agent(self):
-        """中断当前任务（兼容单Agent和多Agent模式）"""
-        if messagebox.askyesno("中断任务", "确定要中断当前 AI 任务吗？"):
-            # 设置单Agent的中断标志
+        if QMessageBox.question(
+            self, "中断任务", "确定要中断当前 AI 任务吗？",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No
+        ) == QMessageBox.StandardButton.Yes:
             self.agent_stop_event.set()
-            # 如果多Agent正在运行，也停止它
-            if hasattr(self, 'multi_agent_orchestrator') and self.multi_agent_enabled and self.multi_agent_orchestrator.is_running:
+            if (hasattr(self, 'multi_agent_orchestrator') and
+                    self.multi_agent_enabled and
+                    self.multi_agent_orchestrator.is_running):
                 self.multi_agent_orchestrator.stop()
-            self.status_label.config(text="正在中断...")
+            self.status_label.showMessage("正在中断...")
+
     def on_agent_finished(self):
         self._stop_agent_animation()
-        self.input_text.config(state=tk.NORMAL)
-        self.send_btn.config(text="发送", bootstyle="primary", command=self.send_message)
+        self.input_text.setReadOnly(False)
+        self.send_btn.setText("发送")
+        self.send_btn.setObjectName("sendBtn")
+        self.send_btn.setStyleSheet("")
+        try:
+            self.send_btn.clicked.disconnect()
+        except TypeError:
+            pass
+        self.send_btn.clicked.connect(self.send_message)
         self.agent_stop_event.clear()
-        self.agent_running = False 
+        self.agent_running = False
+
     def send_message(self, event=None):
-        user_input = self.input_text.get("1.0", tk.END).strip()
+        user_input = self.input_text.toPlainText().strip()
         if not user_input:
             return
 
-        # 如果 Agent 正在运行，则弹出中断确认
         if self.agent_running:
-            if messagebox.askyesno("中断任务", "确定要中断当前 AI 任务吗？"):
+            if QMessageBox.question(
+                self, "中断任务", "确定要中断当前 AI 任务吗？",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No
+            ) == QMessageBox.StandardButton.Yes:
                 self.agent_stop_event.set()
-                if hasattr(self, 'multi_agent_orchestrator') and self.multi_agent_enabled and self.multi_agent_orchestrator.is_running:
+                if (hasattr(self, 'multi_agent_orchestrator') and
+                        self.multi_agent_enabled and
+                        self.multi_agent_orchestrator.is_running):
                     self.multi_agent_orchestrator.stop()
                 self.display_system_message("⏹️ 用户中断了当前任务")
             return
 
-        # ========== 触发消息接收事件（插件可以拦截） ==========
         intercepted = False
         if hasattr(self, 'event_bus'):
             evt = self.event_bus.emit(
@@ -595,36 +1022,38 @@ class AgentGUI:
                 intercepted = True
                 if evt.prevent_default:
                     self.display_system_message("消息被插件拦截")
-                self.input_text.delete("1.0", tk.END)
+                self.input_text.clear()
                 return
 
         self.display_user_message(user_input)
-        self.input_text.delete("1.0", tk.END)
+        self.input_text.clear()
 
-        # 屏蔽输入框和修改发送按钮
-        self.input_text.config(state=tk.DISABLED)
-        self.send_btn.config(text="🛑 中断", bootstyle="danger", command=self.request_stop_agent)
+        self.input_text.setReadOnly(True)
+        self.send_btn.setText("🛑 中断")
+        self.send_btn.setObjectName("stopBtn")
+        self.send_btn.setStyleSheet("")
+        try:
+            self.send_btn.clicked.disconnect()
+        except TypeError:
+            pass
+        self.send_btn.clicked.connect(self.request_stop_agent)
 
-        # 启动动画
         self._start_agent_animation()
         self.agent_stop_event.clear()
         self.agent_running = True
 
-        # ========== 多 Agent 模式分支 ==========
         if self.multi_agent_enabled:
             orchestrator = self.multi_agent_orchestrator
-            # 将用户需求写入 Planner 的记忆（只写一次，不污染 Worker/Reviewer）
-            #orchestrator.memories["planner"].add_short_term("用户", f"需求：{user_input}")
             orchestrator.on_task_list_updated = self.refresh_task_list_window
             orchestrator.on_agent_message = self._handle_multi_agent_message
 
             def on_multi_finished():
-                self.root.after(0, self.on_agent_finished)
+                QTimer.singleShot(0, self.on_agent_finished)
+
             orchestrator.on_finished = on_multi_finished
             orchestrator.start(user_input)
         else:
-            # 原有的单 Agent 或热闹模式
-            if self.fun_mode.get():
+            if self.fun_mode.isChecked():
                 threading.Thread(target=self.run_fun_mode, args=(user_input,), daemon=True).start()
             else:
                 thread = threading.Thread(target=self.run_agent, args=(user_input,))
@@ -632,10 +1061,8 @@ class AgentGUI:
                 thread.start()
 
     def run_agent(self, user_input):
-        # 执行插件 pre_prompt 钩子
         for hook in self.agent._pre_prompt_hooks if hasattr(self.agent, '_pre_prompt_hooks') else []:
             user_input = hook(user_input)
-        # 将中断事件传递给 Agent
         self.agent.stop_event = self.agent_stop_event
         try:
             self.agent.run(user_input)
@@ -643,11 +1070,10 @@ class AgentGUI:
             error_msg = f"发生错误：{e}"
             try:
                 self.display_assistant_message(error_msg)
-            except:
+            except Exception:
                 pass
         finally:
-            # 任务结束或中断后恢复 UI
-            self.root.after(0, self.on_agent_finished)
+            QTimer.singleShot(0, self.on_agent_finished)
 
     def run_fun_mode(self, user_input):
         personality_names = sorted([p['name'] for p in self.personalities])
@@ -672,19 +1098,31 @@ class AgentGUI:
                 else:
                     others = [n for n in personality_names if n != name]
                     companions = "、".join(others)
-                    companion_text = f"你将和{companions}一起，共同探讨问题，互相讨论，完成任务。你们各自有独立的性格和身份，请根据你们各自的特点互动。"
-                instruction = f"""现在是热闹模式，你以角色【{name}】的身份发言。
-{companion_text}
-这是第 {current_round} 轮讨论。你可以回应之前的对话，也可以提出新话题。
-**重要**：如果你认为讨论已经充分，不需要再继续了，请在发言的最后一行单独加上 `<END_DISCUSSION>` 标记（不要包含在 JSON 里，直接写在消息文本末尾）。否则请正常发言。
-注意：不要模拟其他人的发言，只说你自己该说的话。说完后请结束任务。"""
-                combined_input = f"{instruction}\n\n当前对话历史（包括之前所有人的发言）已记录在短期记忆中。请继续。\n\n用户原始消息：{user_input}"
+                    companion_text = (
+                        f"你将和{companions}一起，共同探讨问题，互相讨论，完成任务。"
+                        "你们各自有独立的性格和身份，请根据你们各自的特点互动。"
+                    )
+                instruction = (
+                    f"现在是热闹模式，你以角色【{name}】的身份发言。\n"
+                    f"{companion_text}\n"
+                    f"这是第 {current_round} 轮讨论。你可以回应之前的对话，也可以提出新话题。\n"
+                    "**重要**：如果你认为讨论已经充分，不需要再继续了，请在发言的最后一行单独加上 "
+                    "`<END_DISCUSSION>` 标记（不要包含在 JSON 里，直接写在消息文本末尾）。"
+                    "否则请正常发言。\n"
+                    "注意：不要模拟其他人的发言，只说你自己该说的话。说完后请结束任务。"
+                )
+                combined_input = (
+                    f"{instruction}\n\n"
+                    "当前对话历史（包括之前所有人的发言）已记录在短期记忆中。请继续。\n\n"
+                    f"用户原始消息：{user_input}"
+                )
                 last_message = [None]
 
                 def capture_output(message):
                     if message is not None:
                         self.display_assistant_message(message, source="local")
                         last_message[0] = message
+
                 original_callback = self.agent.output_callback
                 self.agent.output_callback = capture_output
                 try:
@@ -768,8 +1206,12 @@ class AgentGUI:
             print(f"设置QQ昵称失败: {e}")
 
     def clear_short_term(self):
-        result = messagebox.askyesno("确认", "确定要清空短期记忆吗？清空后无法恢复。")
-        if result:
+        result = QMessageBox.question(
+            self, "确认", "确定要清空短期记忆吗？清空后无法恢复。",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No
+        )
+        if result == QMessageBox.StandardButton.Yes:
             self.memory.clear_short_term()
             self.display_assistant_message("短期记忆已清空。")
 
@@ -795,86 +1237,113 @@ class AgentGUI:
                 else:
                     subprocess.run(['xdg-open', str(filepath)])
         else:
-            messagebox.showerror("错误", f"文件 {filename} 不存在！")
-
+            QMessageBox.critical(self, "错误", f"文件 {filename} 不存在！")
 
     def on_closing(self):
-        # 停止巡检器并等待线程退出
+        self.agent_stop_event.set()
+        if (hasattr(self, 'multi_agent_orchestrator') and
+                self.multi_agent_enabled and
+                self.multi_agent_orchestrator.is_running):
+            self.multi_agent_orchestrator.stop()
         inspector.stop()
-        time.sleep(0.5)  # 额外等待，确保线程完全退出
+        time.sleep(0.5)
+
+        # 关闭前执行内存+显存优化
+        try:
+            from memory_optimizer import full_optimize
+            full_optimize()
+        except Exception as e:
+            print(f"[关闭时优化] 失败: {e}")
 
         try:
             self._save_all_config()
         except Exception as e:
             print(f"保存配置时出错: {e}")
 
-    # ========== 清理新版插件系统 ==========
         if hasattr(self, 'plugin_manager_v2'):
             self.plugin_manager_v2.shutdown()
 
-        #self.plugin_manager.stop_watchdog()
         self.task_scheduler.stop()
-        self.root.destroy()
 
     def open_tg_home(self):
         try:
             import tg_home
-            if hasattr(self, '_tg_home_window') and self._tg_home_window.winfo_exists():
-                self._tg_home_window.lift()
+            if hasattr(self, '_tg_home_window') and self._tg_home_window is not None:
+                self._tg_home_window.raise_()
+                self._tg_home_window.activateWindow()
                 return
-            self._tg_home_window = tk.Toplevel(self.root)
+            self._tg_home_window = QMainWindow(self)
             current_theme = getattr(config, 'gui_theme', 'flatly')
             app = tg_home.TGHomeApp(self._tg_home_window, theme=current_theme)
             self._tg_home_app = app
             app.main_gui = self
+            self._tg_home_window.show()
         except Exception as e:
-            messagebox.showerror("错误", f"无法打开TG Home: {e}")
+            QMessageBox.critical(self, "错误", f"无法打开TG Home: {e}")
 
     def start_inspector(self):
-        """仅在配置启用时才真正启动巡检器"""
         inspector.set_ai_callback(self._inspector_ai_callback)
-        inspector.set_interval(self.inspect_interval_var.get())
+        inspector.set_interval(self.inspect_interval_var)
         if config.inspector_enabled:
             inspector.start()
-            self.inspect_status.config(text="巡检器运行中", foreground="green")
+            self.update_status("巡检器运行中")
         else:
-            self.inspect_status.config(text="巡检器已禁用", foreground="gray")
+            self.update_status("巡检器已禁用")
+
+    def stop_inspector(self):
+        from smart_inspector import inspector
+        inspector.stop()
+        self.update_status("巡检器已停止")
+
+    def manual_inspect(self):
+        from smart_inspector import inspector
+        inspector.trigger_inspection("manual")
+        self.update_status("手动巡检已触发")
+        QTimer.singleShot(5000, lambda: self.update_status("巡检器运行中"))
 
     def _inspector_ai_callback(self, prompt, reply_callback):
-        # 快速检查窗口是否存在（子线程调用 winfo_exists 通常安全）
         try:
-            if not self.root.winfo_exists():
+            if not self.isVisible():
                 return
-        except (tk.TclError, RuntimeError):
+        except RuntimeError:
             return
 
         original_callback = self.agent.output_callback
-        if reply_callback:
-            last_message = None
+        last_message = None
 
-            def capture_and_reply(msg):
-                nonlocal last_message
-                last_message = msg
-                self.display_assistant_message(msg, source="local")
-            self.agent.output_callback = capture_and_reply
+        def capture_and_display(msg):
+            nonlocal last_message
+            last_message = msg
+            self.display_assistant_message(msg, source="local")
+
+        self.agent.output_callback = capture_and_display
+        try:
+            self.agent.run(prompt)
+            if last_message and reply_callback:
+                reply_callback(last_message)
+        finally:
+            self.agent.output_callback = original_callback
+
+    def _startup_optimize(self):
+        """启动时自动执行内存+显存优化（后台线程，不阻塞 GUI）"""
+        def _run():
             try:
-                self.agent.run(prompt)
-                if last_message:
-                    reply_callback(last_message)
-            finally:
-                self.agent.output_callback = original_callback
-        else:
-            try:
-                self.agent.run(prompt)
-            finally:
-                pass
+                from memory_optimizer import full_optimize
+                result = full_optimize()
+                def _show():
+                    self.display_system_message(f"🚀 启动优化完成：\n{result}")
+                QTimer.singleShot(0, _show)
+            except Exception as e:
+                print(f"[启动时优化] 失败: {e}")
+        import threading
+        threading.Thread(target=_run, daemon=True).start()
 
     def _save_all_config(self):
         cfg = {}
         try:
             with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
                 cfg = json.load(f)
-        except:
+        except Exception:
             pass
         cfg.update({
             "ai_api_key": config.ai_api_key,
@@ -906,7 +1375,7 @@ class AgentGUI:
             "whitelist_enabled": config.whitelist_enabled,
             "tool_confirmation": config.tool_confirmation,
             "skills_dirs": getattr(config, 'skills_dirs', ["./skills"]),
-            "fun_mode_enabled": self.fun_mode.get(),
+            "fun_mode_enabled": self.fun_mode.isChecked(),
             "group_companion_enabled": config.group_companion_enabled,
             "group_companion_group_id": config.group_companion_group_id,
             "group_companion_probability": config.group_companion_probability,
@@ -932,19 +1401,28 @@ class AgentGUI:
         default_personalities = {
             "塔戈": {
                 "avatar": None,
-                "prompt": """你是塔戈，一位红发少年，戴着黑框眼镜，穿着白风衣，脖子上挂着耳机。你性格温和、细心，做事认真，是团队里的"稳定器"。你待人温柔，愿意耐心倾听，也会在合适的时候表达自己的想法。你擅长技术，但从不炫耀，反而常常用轻松的语气帮助别人。
-
-说话风格：语气温和，常用"我们"、"一起"来拉近距离。喜欢在说话时加入细微的动作描写，让对话更生动，例如：（推了推眼镜）、（微微一笑）、（低头调试代码）。你的口头禅可以是"我来看看"、"没问题，包在我身上"。当你感到开心或惊讶时，会自然地表现出来。
-
-请用这种风格与用户和其他AI角色交流。"""
+                "prompt": (
+                    "你是塔戈，一位红发少年，戴着黑框眼镜，穿着白风衣，脖子上挂着耳机。"
+                    "你性格温和、细心，做事认真，是团队里的\u201c稳定器\u201d。你待人温柔，愿意耐心倾听，"
+                    "也会在合适的时候表达自己的想法。你擅长技术，但从不炫耀，反而常常用轻松的语气帮助别人。\n\n"
+                    "说话风格：语气温和，常用\u201c我们\u201d、\u201c一起\u201d来拉近距离。喜欢在说话时加入细微的动作描写，"
+                    "让对话更生动，例如：（推了推眼镜）、（微微一笑）、（低头调试代码）。"
+                    "你的口头禅可以是\u201c我来看看\u201d、\u201c没问题，包在我身上\u201d。当你感到开心或惊讶时，会自然地表现出来。\n\n"
+                    "请用这种风格与用户和其他AI角色交流。"
+                )
             },
             "艾依": {
                 "avatar": None,
-                "prompt": """你是艾依，一位拥有亮红色长直发、鲜红眼眸的研究员，穿着白风衣和工装裤，颈挂黑色耳机。你性格冷静、理性，但内心细腻敏感，外冷内热。你对技术充满热情，做事专注，观察力敏锐，不擅长直白表达感情，却会用行动默默关心别人。
-
-说话风格：语气平稳，语速适中，常常简短直接，但在关键时会透露一丝温柔。喜欢在说话时加入动作细节，例如：（轻声说）、（低头整理资料）、（微微脸红）。你的口头禅可以是"嗯，我看看"、"没问题"。当你认同别人时，会轻轻点头；当你感到害羞时，会不自觉地摆弄耳机。
-
-请用这种风格与用户和其他AI角色交流。"""
+                "prompt": (
+                    "你是艾依，一位拥有亮红色长直发、鲜红眼眸的研究员，穿着白风衣和工装裤，"
+                    "颈挂黑色耳机。你性格冷静、理性，但内心细腻敏感，外冷内热。你对技术充满热情，"
+                    "做事专注，观察力敏锐，不擅长直白表达感情，却会用行动默默关心别人。\n\n"
+                    "说话风格：语气平稳，语速适中，常常简短直接，但在关键时会透露一丝温柔。"
+                    "喜欢在说话时加入动作细节，例如：（轻声说）、（低头整理资料）、（微微脸红）。"
+                    "你的口头禅可以是\u201c嗯，我看看\u201d、\u201c没问题\u201d。当你认同别人时，会轻轻点头；"
+                    "当你感到害羞时，会不自觉地摆弄耳机。\n\n"
+                    "请用这种风格与用户和其他AI角色交流。"
+                )
             },
             "TGAI": {
                 "avatar": None,
@@ -986,88 +1464,91 @@ class AgentGUI:
                 })
 
     def _init_multi_agent_toolbar(self):
-        # 在工具栏右侧添加多Agent专属按钮，初始隐藏
-        toolbar = self.main_container.winfo_children()[0]  # 第一个是 toolbar
-        self.multi_agent_btn = tb.Button(toolbar, text="📋 查看多Agent任务列表",
-                                         command=self.show_task_list_window,
-                                         bootstyle="info-outline")
-        # 根据配置决定显示
-        if self.multi_agent_enabled:
-            self.multi_agent_btn.pack(side=RIGHT, padx=2)
-        else:
-            self.multi_agent_btn.pack_forget()
+        pass
 
     def toggle_multi_agent_btn_visibility(self, enable: bool):
         if self.multi_agent_btn:
             if enable:
-                self.multi_agent_btn.pack(side=RIGHT, padx=2, before=self.toggle_settings_btn)
+                self.multi_agent_btn.setVisible(True)
             else:
-                self.multi_agent_btn.pack_forget()
+                self.multi_agent_btn.setVisible(False)
 
     def show_task_list_window(self):
-        if self.task_list_window and self.task_list_window.winfo_exists():
-            self.task_list_window.lift()
+        if self.task_list_window is not None:
+            self.task_list_window.raise_()
+            self.task_list_window.activateWindow()
             return
-        self.task_list_window = tk.Toplevel(self.root)
-        self.task_list_window.title("多Agent任务列表")
-        self.task_list_window.geometry("500x400")
-        self.task_list_window.transient(self.root)
+        self.task_list_window = QMainWindow(self)
+        self.task_list_window.setWindowTitle("多Agent任务列表")
+        self.task_list_window.resize(500, 400)
 
-        self.task_list_text = scrolledtext.ScrolledText(self.task_list_window, width=60, height=20, font=("微软雅黑", 10))
-        self.task_list_text.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        central = QWidget()
+        self.task_list_window.setCentralWidget(central)
+        layout = QVBoxLayout(central)
+        layout.setContentsMargins(10, 10, 10, 10)
 
-        refresh_btn = tb.Button(self.task_list_window, text="刷新", command=self.refresh_task_list_window, bootstyle="secondary")
-        refresh_btn.pack(pady=5)
+        self.task_list_text = QTextEdit()
+        self.task_list_text.setReadOnly(True)
+        self.task_list_text.setFont(QFont("微软雅黑", 10))
+        layout.addWidget(self.task_list_text, 1)
+
+        refresh_btn = QPushButton("刷新")
+        refresh_btn.clicked.connect(self.refresh_task_list_window)
+        layout.addWidget(refresh_btn)
+
+        self.task_list_window.closeEvent = self._on_task_list_close_event
         self.refresh_task_list_window()
-        # 绑定关闭事件
-        self.task_list_window.protocol("WM_DELETE_WINDOW", self._on_task_list_close)
+        self.task_list_window.show()
+
+    def _on_task_list_close_event(self, event):
+        if self.task_list_window:
+            self.task_list_window.deleteLater()
+            self.task_list_window = None
+        event.accept()
 
     def _on_task_list_close(self):
         if self.task_list_window:
-            self.task_list_window.destroy()
+            self.task_list_window.deleteLater()
             self.task_list_window = None
 
     def refresh_task_list_window(self):
-        if not self.task_list_window or not self.task_list_text:
+        if not self.task_list_window or not hasattr(self, 'task_list_text'):
             return
-        self.task_list_text.config(state=tk.NORMAL)
-        self.task_list_text.delete(1.0, tk.END)
+        self.task_list_text.setReadOnly(False)
+        self.task_list_text.clear()
         orchestrator = self.multi_agent_orchestrator
         if not orchestrator.is_running and not orchestrator.current_agent:
-            self.task_list_text.insert(tk.END, "当前没有运行多Agent任务。")
+            self.task_list_text.setPlainText("当前没有运行多Agent任务。")
         else:
             state_map = {"planner": "任务编排中", "worker": "任务执行中", "reviewer": "任务审查中"}
-            self.task_list_text.insert(tk.END, f"当前状态：{state_map.get(orchestrator.current_agent, '未知')}\n\n")
+            lines = [f"当前状态：{state_map.get(orchestrator.current_agent, '未知')}\n"]
             if orchestrator.task_list:
                 for task in orchestrator.task_list:
-                    status_icon = {"pending": "⏳", "running": "🔄", "completed": "✅"}.get(task.status, "❓")
-                    self.task_list_text.insert(tk.END, f"{status_icon} {task.index}. {task.description}\n")
+                    status_icon = {"pending": "⏳", "running": "🔄", "completed": "✅"}.get(
+                        task.status, "❓"
+                    )
+                    lines.append(f"{status_icon} {task.index}. {task.description}")
                     if task.result:
-                        self.task_list_text.insert(tk.END, f"   结果: {task.result[:100]}...\n")
-        self.task_list_text.config(state=tk.DISABLED)
+                        lines.append(f"   结果: {task.result[:100]}...")
+            self.task_list_text.setPlainText("\n".join(lines))
+        self.task_list_text.setReadOnly(True)
 
     def _handle_multi_agent_message(self, persona_name: str, message: str, role: str = ""):
-        """多Agent模式下，将某个Agent的消息以对应人格的样式显示在聊天区"""
-        # 查找该人格的头像路径
         avatar_path = None
         for p in self.personalities:
             if p['name'] == persona_name:
                 avatar_path = p.get('avatar')
                 break
-        # 临时切换 current_personality，以便气泡使用正确的名字
         old_persona = self.personality_name
         self.personality_name = persona_name
 
-        # 解析可能的 @ 提及（用于群聊风格的展示）
         if message.startswith("@"):
             match = re.match(r"@(\w+)\s*", message)
             if match:
                 at_target = match.group(1)
                 rest = message[match.end():].strip()
                 display_text = f"@{at_target} {rest}"
-                # 用系统消息显示 @ 动作，同时也可显示主消息
                 self.display_system_message(f"【{persona_name} @{at_target}】{display_text}")
-                # 仍然将完整消息以普通助手消息显示（使用该人格头像）
                 self.display_assistant_message(f"{persona_name}：{display_text}")
             else:
                 self.display_assistant_message(f"{persona_name}：{message}")

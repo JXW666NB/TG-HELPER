@@ -93,11 +93,16 @@ class NodeBridge:
 
     def stop(self):
         self._running = False
+        # 释放所有挂起的 call() 请求，防止线程永久阻塞
+        with self._lock:
+            for req_id, q in list(self._pending_requests.items()):
+                q.put({"error": {"message": "NodeBridge 已停止"}})
+            self._pending_requests.clear()
         if self.process:
             try:
                 self.process.terminate()
                 self.process.wait(timeout=5)
-            except:
+            except Exception:
                 self.process.kill()
             self.process = None
         print("[NodeBridge] 子进程已停止")

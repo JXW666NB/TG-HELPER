@@ -7,6 +7,11 @@ import json
 import threading
 from typing import Dict, List, Optional, Any, Callable
 
+from config import banben
+
+# 插件配置写锁（所有插件共享，防止并发写损坏 JSON）
+_PLUGIN_CONFIG_LOCK = threading.Lock()
+
 from .base import (
     HostAPI, UIHostAPI, MemoryHostAPI, AgentHostAPI,
     EventsHostAPI, ToolsHostAPI, FSHostAPI, SystemHostAPI
@@ -81,18 +86,19 @@ class HostAPIImpl(HostAPI):
         if plugin_id is None:
             plugin_id = self._plugin_id
         config_file = os.path.expanduser("~/.agent_config.json")
-        all_config = {}
-        if os.path.exists(config_file):
-            try:
-                with open(config_file, 'r', encoding='utf-8') as f:
-                    all_config = json.load(f)
-            except:
-                pass
-        if "plugins" not in all_config:
-            all_config["plugins"] = {}
-        all_config["plugins"][plugin_id] = config
-        with open(config_file, 'w', encoding='utf-8') as f:
-            json.dump(all_config, f, indent=2)
+        with _PLUGIN_CONFIG_LOCK:
+            all_config = {}
+            if os.path.exists(config_file):
+                try:
+                    with open(config_file, 'r', encoding='utf-8') as f:
+                        all_config = json.load(f)
+                except Exception:
+                    all_config = {}
+            if "plugins" not in all_config:
+                all_config["plugins"] = {}
+            all_config["plugins"][plugin_id] = config
+            with open(config_file, 'w', encoding='utf-8') as f:
+                json.dump(all_config, f, indent=2, ensure_ascii=False)
 
 
 class UIHostAPIImpl(UIHostAPI):
@@ -121,7 +127,8 @@ class UIHostAPIImpl(UIHostAPI):
         if threading.current_thread() is threading.main_thread():
             _display()
         else:
-            self._gui.root.after(0, _display)
+            if hasattr(self._gui, 'schedule_on_main'):
+                self._gui.schedule_on_main(_display)
 
     def add_settings_tab(self, name: str, frame_factory: Callable[[Any], Any]) -> None:
         if not self._check_permission("ui.settings_tab"):
@@ -130,7 +137,8 @@ class UIHostAPIImpl(UIHostAPI):
             if self._gui and hasattr(self._gui, 'notebook'):
                 frame = frame_factory(self._gui.notebook)
                 self._gui.notebook.add(frame, text=name)
-        self._gui.root.after(0, _add)
+        if hasattr(self._gui, 'schedule_on_main'):
+            self._gui.schedule_on_main(_add)
 
     def add_toolbar_button(self, text: str, command: Callable, icon: str = "") -> None:
         if not self._check_permission("ui.modify"):
@@ -148,7 +156,8 @@ class UIHostAPIImpl(UIHostAPI):
         def _apply():
             if self._gui:
                 self._gui.change_theme(theme_name)
-        self._gui.root.after(0, _apply)
+        if hasattr(self._gui, 'schedule_on_main'):
+            self._gui.schedule_on_main(_apply)
         return True
 
     def get_current_theme(self) -> str:
@@ -159,15 +168,7 @@ class UIHostAPIImpl(UIHostAPI):
     def set_font(self, family: str, size: int) -> bool:
         if not self._check_permission("ui.modify"):
             return False
-        def _apply():
-            if self._gui:
-                from tkinter import font
-                default_font = font.nametofont("TkDefaultFont")
-                default_font.configure(family=family, size=size)
-                if hasattr(self._gui, 'font'):
-                    self._gui.font.configure(family=family, size=size)
-                self._gui.root.update_idletasks()
-        self._gui.root.after(0, _apply)
+        print(f"[HostAPI] 字体设置请求: family={family}, size={size} (PyQt6 使用 QSS 管理字体，此请求已忽略)")
         return True
 
     def apply_styles(self, styles: Dict[str, Any]) -> bool:
@@ -179,7 +180,8 @@ class UIHostAPIImpl(UIHostAPI):
                     self._gui._plugin_styles = {}
                 self._gui._plugin_styles.update(styles)
                 self._event_bus.emit("ui.styles_changed", styles, self._plugin_id)
-        self._gui.root.after(0, _apply)
+        if hasattr(self._gui, 'schedule_on_main'):
+            self._gui.schedule_on_main(_apply)
         return True
 
     def register_message_renderer(self, name: str, renderer: Callable[[str, bool], str]) -> None:
@@ -259,16 +261,42 @@ class AgentHostAPIImpl(AgentHostAPI):
     def _check_permission(self, capability: str) -> bool:
         return self._cap_manager.check_permission(self._plugin_id, capability)
 
+    # 不允许插件覆盖的核心工具列表
+    _PROTECTED_TOOLS = {
+        "execute_command", "run_command", "os", "sys", "eval", "exec",
+        "__import__", "open", "subprocess", "shutil", "socket",
+    }
+
     def register_tool(self, tool_def: Dict[str, Any], handler: Callable) -> None:
         if not self._check_permission("agent.tool_register"):
             return
         tool_name = tool_def.get("name")
+        if not tool_name:
+            return
+        if tool_name in self._PROTECTED_TOOLS:
+            print(f"[HostAPI] 拒绝注册受保护的工具名: {tool_name}")
+            return
+        # 避免覆盖已存在的核心方法
+        if hasattr(self._tools, tool_name) and callable(getattr(self._tools, tool_name)):
+            existing = getattr(self._tools, tool_name)
+            if not hasattr(existing, '_is_plugin_tool'):
+                print(f"[HostAPI] 警告: 工具 {tool_name} 已存在，将被插件版本覆盖")
         def wrapped_handler(**kwargs):
             try:
                 return handler(kwargs)
             except Exception as e:
                 return f"工具执行错误: {e}"
+        wrapped_handler._is_plugin_tool = True
+        wrapped_handler._plugin_id = self._plugin_id
         setattr(self._tools, tool_name, wrapped_handler)
+        # 同时注册到 Tools._plugin_tools，供 AI 系统提示词动态发现
+        if hasattr(self._tools, 'register_plugin_tool'):
+            self._tools.register_plugin_tool(
+                tool_name=tool_name,
+                description=tool_def.get("description", ""),
+                parameters=tool_def.get("parameters", {}),
+                plugin_id=self._plugin_id,
+            )
 
     def register_middleware(self, name: str, middleware: Callable) -> None:
         if not self._check_permission("agent.intercept"):
@@ -356,6 +384,11 @@ class ToolsHostAPIImpl(ToolsHostAPI):
         return tools
 
     def override_tool(self, tool_name: str, handler: Callable) -> bool:
+        if not self._check_permission("agent.modify"):
+            return False
+        if tool_name in self._PROTECTED_TOOLS:
+            print(f"[HostAPI] 拒绝覆盖受保护的工具: {tool_name}")
+            return False
         if not hasattr(self._tools, tool_name):
             return False
         setattr(self._tools, tool_name, handler)
@@ -402,7 +435,8 @@ class FSHostAPIImpl(FSHostAPI):
             with open(path, 'w', encoding='utf-8') as f:
                 f.write(content)
             return True
-        except:
+        except Exception as e:
+            print(f"[HostAPI] 写入文件失败 ({path}): {e}")
             return False
 
     def get_plugin_data_dir(self) -> str:
@@ -415,7 +449,8 @@ class FSHostAPIImpl(FSHostAPI):
             return []
         try:
             return os.listdir(path)
-        except:
+        except Exception as e:
+            print(f"[HostAPI] 列出目录失败 ({path}): {e}")
             return []
 
     def delete_file(self, path: str) -> bool:
@@ -426,7 +461,8 @@ class FSHostAPIImpl(FSHostAPI):
         try:
             os.remove(path)
             return True
-        except:
+        except Exception as e:
+            print(f"[HostAPI] 删除文件失败 ({path}): {e}")
             return False
 
 
@@ -449,7 +485,7 @@ class SystemHostAPIImpl(SystemHostAPI):
         setattr(self._config, key, value)
 
     def get_version(self) -> str:
-        return "2.0.0"
+        return banben
 
     def get_all_config(self) -> Dict[str, Any]:
         if not self._check_permission("system.config"):

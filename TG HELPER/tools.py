@@ -34,8 +34,44 @@ class Tools:
             api_key=config.ai_api_key,
             base_url=config.ai_base_url
         )
+        # 插件注册的工具表：{tool_name: {"description": str, "parameters": dict, "plugin_id": str}}
+        self._plugin_tools: dict = {}
         os.makedirs("./screenshots", exist_ok=True)
         os.makedirs("./downloads", exist_ok=True)
+
+    def register_plugin_tool(self, tool_name: str, description: str, parameters: dict, plugin_id: str):
+        """供插件系统调用，注册插件提供的工具"""
+        self._plugin_tools[tool_name] = {
+            "description": description,
+            "parameters": parameters,
+            "plugin_id": plugin_id,
+        }
+
+    def unregister_plugin_tool(self, tool_name: str):
+        """卸载插件工具"""
+        self._plugin_tools.pop(tool_name, None)
+
+    def get_plugin_tools_summary(self) -> str:
+        """生成插件工具的文本摘要，供 AI 系统提示词使用"""
+        if not self._plugin_tools:
+            return ""
+        lines = ["\n【插件注册的工具】"]
+        for name, info in self._plugin_tools.items():
+            desc = info.get("description", "")
+            params = info.get("parameters", {})
+            param_str = ""
+            if isinstance(params, dict) and "properties" in params:
+                props = params["properties"]
+                req = params.get("required", [])
+                parts = []
+                for k, v in props.items():
+                    mark = "(必填)" if k in req else "(可选)"
+                    parts.append(f"{k}{mark}")
+                param_str = ", ".join(parts)
+            elif isinstance(params, dict):
+                param_str = ", ".join(params.keys())
+            lines.append(f"- {name}({param_str}) - {desc}")
+        return "\n".join(lines)
 
     def _expand_path(self, path):
         """展开路径中的 ~ 并返回绝对路径"""
@@ -2021,3 +2057,199 @@ CPU使用率: {cpu_percent}%
         if not results:
             return "INFO: 百度搜索未找到结果，请尝试更换关键词。"
         return "SUCCESS: 百度搜索结果:\n" + "\n".join(results)
+
+    # ==================== 增强爬虫工具 ====================
+    def browser_get_page_html(self, max_chars=50000):
+        """获取当前页面完整 HTML 源码（截断），适合 AI 分析页面结构"""
+        if not hasattr(self, '_current_page'):
+            return "ERROR: 未打开任何页面"
+        try:
+            html = self._current_page.content()
+            if len(html) > max_chars:
+                html = html[:max_chars] + f"\n\n... (已截断，原始长度: {len(html)} 字符。可用 browser_evaluate 获取特定数据)"
+            return f"SUCCESS: 页面 HTML ({len(html)} 字符)\n{html}"
+        except Exception as e:
+            return f"ERROR: {str(e)}"
+
+    def browser_extract_all_text(self, max_chars=8000):
+        """提取页面中所有可见文本内容（截断），快速了解页面信息"""
+        if not hasattr(self, '_current_page'):
+            return "ERROR: 未打开任何页面"
+        try:
+            text = self._current_page.evaluate("""() => {
+                const skipTags = ['SCRIPT', 'STYLE', 'NOSCRIPT', 'IFRAME', 'SVG'];
+                const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+                let result = [];
+                while(walker.nextNode()) {
+                    const parent = walker.currentNode.parentElement;
+                    if (!parent || skipTags.includes(parent.tagName)) continue;
+                    const t = walker.currentNode.textContent.trim();
+                    if (t) result.push(t);
+                }
+                return result.join('\\n');
+            }""")
+            if len(text) > max_chars:
+                text = text[:max_chars] + f"\n...(已截断 {max_chars}/{len(text)} 字符)"
+            return f"SUCCESS: 页面文本\n{text}"
+        except Exception as e:
+            return f"ERROR: {str(e)}"
+
+    def browser_scroll_and_extract(self, selector, scroll_times=5, scroll_delay=1.5, max_items=50):
+        """滚动页面并多次提取数据，适合无限滚动/懒加载页面（如电商列表、社交媒体）"""
+        if not hasattr(self, '_current_page'):
+            return "ERROR: 未打开任何页面"
+        page = self._current_page
+        all_items = []
+        seen = set()
+        try:
+            for i in range(scroll_times):
+                items = page.eval_on_selector_all(selector, """elements => elements.map(el => {
+                    const text = el.innerText || el.textContent || '';
+                    const href = el.querySelector('a') ? el.querySelector('a').href : '';
+                    const img = el.querySelector('img') ? el.querySelector('img').src : '';
+                    return {text: text.trim().substring(0, 300), href: href, img: img};
+                })""")
+                for item in items:
+                    key = item.get('text', '')[:50]
+                    if key and key not in seen:
+                        seen.add(key)
+                        all_items.append(item)
+                if len(all_items) >= max_items:
+                    break
+                page.evaluate(f"window.scrollBy(0, {800 + i*200})")
+                time.sleep(scroll_delay)
+            result = f"提取到 {len(all_items)} 条数据:\n"
+            for idx, item in enumerate(all_items[:max_items], 1):
+                result += f"{idx}. {item['text'][:200]}\n"
+                if item.get('href'):
+                    result += f"   链接: {item['href']}\n"
+            if len(all_items) > max_items:
+                result += f"...（共 {len(all_items)} 条，仅显示前 {max_items} 条）"
+            return f"SUCCESS: {result}"
+        except Exception as e:
+            return f"ERROR: 滚动提取失败: {str(e)}"
+
+    def browser_extract_table(self, selector="table", max_rows=100, output_file=None):
+        """提取页面中 HTML 表格数据，可选保存为 CSV"""
+        if not hasattr(self, '_current_page'):
+            return "ERROR: 未打开任何页面"
+        try:
+            data = self._current_page.evaluate(f"""(sel) => {{
+                const table = document.querySelector(sel);
+                if (!table) return null;
+                const headers = [];
+                table.querySelectorAll('thead th, thead td, tr:first-child th, tr:first-child td').forEach(h => headers.push(h.innerText.trim()));
+                const rows = [];
+                table.querySelectorAll('tbody tr, tr').forEach((tr, idx) => {{
+                    if (idx === 0 && headers.length > 0) {{
+                        const firstCells = Array.from(tr.querySelectorAll('th, td')).map(c => c.innerText.trim());
+                        if (JSON.stringify(firstCells) === JSON.stringify(headers)) return;
+                    }}
+                    const cells = Array.from(tr.querySelectorAll('td, th')).map(c => c.innerText.trim().substring(0, 200));
+                    if (cells.length > 0) rows.push(cells);
+                }});
+                return {{headers, rows: rows.slice(0, {max_rows})}};
+            }}""", selector)
+            if not data:
+                return f"ERROR: 未找到表格 {selector}"
+            lines = []
+            if data['headers']:
+                lines.append(" | ".join(data['headers']))
+                lines.append("-" * 40)
+            for row in data['rows']:
+                lines.append(" | ".join(row))
+            result = "\n".join(lines)
+            total_rows = len(data['rows'])
+            result = f"表格数据 (共{total_rows}行):\n{result}"
+            if output_file:
+                import csv
+                with open(output_file, 'w', newline='', encoding='utf-8-sig') as f:
+                    writer = csv.writer(f)
+                    if data['headers']:
+                        writer.writerow(data['headers'])
+                    writer.writerows(data['rows'])
+                result += f"\n已保存到 CSV: {output_file}"
+            return f"SUCCESS: {result}"
+        except Exception as e:
+            return f"ERROR: 提取表格失败: {str(e)}"
+
+    def browser_extract_json_from_script(self, key_pattern=None):
+        """从页面 <script> 标签中提取 JSON 数据（常用于 SPA 页面）"""
+        if not hasattr(self, '_current_page'):
+            return "ERROR: 未打开任何页面"
+        try:
+            patterns = self._current_page.evaluate("""() => {
+                const scripts = document.querySelectorAll('script[type="application/json"], script[id*="__NEXT"], script[id*="__NUXT"], script[type="application/ld+json"]');
+                const results = [];
+                scripts.forEach(s => {
+                    try {
+                        const data = JSON.parse(s.textContent);
+                        results.push({id: s.id, type: s.type, keys: Object.keys(data).slice(0, 10)});
+                    } catch(e) {}
+                });
+                return results;
+            }""")
+            if not patterns:
+                return "INFO: 未找到嵌入式 JSON 数据块"
+            lines = ["找到以下 JSON 数据块:"]
+            for p in patterns:
+                lines.append(f"  - id={p['id'] or '(无)'} type={p['type'] or '(无)'} 顶层键: {p['keys']}")
+            lines.append("\n使用 browser_evaluate 提取具体数据，例如:")
+            lines.append("  browser_evaluate('JSON.parse(document.querySelector(\"script#__NEXT_DATA__\").textContent)')")
+            return "SUCCESS: " + "\n".join(lines)
+        except Exception as e:
+            return f"ERROR: {str(e)}"
+
+    def browser_navigate_smart(self, url, wait_until="networkidle", timeout=45000):
+        """智能导航：自动重试+更长超时+网络错误友好提示"""
+        if not hasattr(self, '_current_page') and not hasattr(self, '_browser_by_thread'):
+            return "ERROR: 浏览器未启动，请先调用 browser_navigate"
+        page = getattr(self, '_current_page', None)
+        if page:
+            try:
+                page.goto(url, wait_until=wait_until, timeout=timeout)
+                return f"SUCCESS: 已导航到 {url}，当前标题: {page.title()}"
+            except Exception as e:
+                error_str = str(e)
+                if "timeout" in error_str.lower():
+                    try:
+                        page.goto(url, wait_until="domcontentloaded", timeout=30000)
+                        time.sleep(3)
+                        return f"SUCCESS: 页面部分加载（网络较慢），URL: {url}，标题: {page.title()}"
+                    except:
+                        pass
+                if "net::" in error_str.lower() or "NS_ERROR" in error_str:
+                    return f"ERROR: 网络连接失败，请检查: 1) 是否需要代理 2) 网站是否可访问 3) DNS是否正常。\n详情: {error_str[:200]}"
+                return f"ERROR: 导航失败: {error_str[:300]}"
+        return self.browser_navigate(url, wait_until=wait_until, retries=3)
+
+    # ==================== 内存优化工具 ====================
+    def list_processes(self, top_n: int = 30):
+        """列出当前正在运行的进程（按内存占用排序），标注可关闭/受保护"""
+        from memory_optimizer import list_processes as _lp
+        return _lp(top_n)
+
+    def kill_process_by_name(self, name: str):
+        """按进程名结束进程（受系统白名单保护，保护系统进程和 AI 自身）"""
+        from memory_optimizer import kill_process_by_name as _kpn
+        return _kpn(name)
+
+    def kill_process_by_pid(self, pid: int):
+        """按 PID 结束进程（受系统白名单保护，保护系统进程和 AI 自身）"""
+        from memory_optimizer import kill_process_by_pid as _kpp
+        return _kpp(pid)
+
+    def optimize_memory(self):
+        """执行系统内存优化：Python垃圾回收、释放工作集、统计临时文件"""
+        from memory_optimizer import optimize_memory as _om
+        return _om()
+
+    def optimize_vram(self):
+        """执行显存清理：CUDA显存释放、ONNX Runtime清理"""
+        from memory_optimizer import optimize_vram as _ov
+        return _ov()
+
+    def full_memory_optimize(self):
+        """执行完整内存+显存优化"""
+        from memory_optimizer import full_optimize as _fo
+        return _fo()
