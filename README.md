@@ -1,4 +1,4 @@
-# TG HELPER v0.1.5 — Your All-in-One AI Assistant / Colleague / Buddy... Call It Whatever You Want
+# TG HELPER v0.2.5 — Your All-in-One AI Assistant / Colleague / Buddy... Call It Whatever You Want
 
 <p align="center">
   <strong>Desktop-level AI Agent — File Operations · Browser Automation · IoT Hub · QQ Bot · Proactive Intelligence</strong>
