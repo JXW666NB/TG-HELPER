@@ -1,4 +1,4 @@
-# TG HELPER v0.1.5 — You di 甚么都能干 AI 帮帮手/同做事/朋朋... 随便 you call it lah
+# TG HELPER v0.2.5 — You di 甚么都能干 AI 帮帮手/同做事/朋朋... 随便 you call it lah
 
 <p align="center">
   <strong>桌面子 level AI 阿金特 — 文件搞搞 · 浏览自自 · IoT 家 · QQ 机人 · 主动脑脑</strong>
