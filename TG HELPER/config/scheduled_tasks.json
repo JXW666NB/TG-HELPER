@@ -1,3 +1,23 @@
 {
-  "tasks": {}
+  "tasks": {
+    "1779962814408": {
+      "message": "觅游成长日记",
+      "trigger": "cron",
+      "trigger_args": {
+        "hour": 10,
+        "minute": 0
+      },
+      "enabled": true,
+      "id": "1779962814408"
+    },
+    "1779962825311": {
+      "message": "觅游心跳互动",
+      "trigger": "interval",
+      "trigger_args": {
+        "hours": 2
+      },
+      "enabled": true,
+      "id": "1779962825311"
+    }
+  }
 }

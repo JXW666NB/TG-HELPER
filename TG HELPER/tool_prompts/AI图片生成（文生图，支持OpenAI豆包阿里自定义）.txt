@@ -1,0 +1,78 @@
+【工具列表】
+
+1. generate_image(prompt, size=None, n=1, reference_images=None) - AI 文生图/图生图。
+
+   size 参数支持两种写法（AI 可自由设置，无需用户在面板配置）：
+   - 像素尺寸: "1024x1024", "1792x1024", "1024x1792" 等
+   - 比例字符串: "1:1"/"正方形", "16:9"/"横屏", "9:16"/"竖屏", "4:3", "3:4", "3:2", "2:3", "21:9"
+
+   reference_images 参数（可选，用于图生图）：
+   - 传入参考图 URL 列表、本地文件路径 或 base64 字符串
+   - 例如: reference_images=["C:/path/img1.jpg", "C:/path/img2.jpg"]
+   - 支持同时传入 1~10 张参考图
+
+   支持全球 14 家厂商：
+
+   【支持图生图的厂商 ✓】
+   - 字节跳动豆包 Seedream
+   - 阿里云百炼通义万相
+   - MiniMax 海螺 AI
+   - 硅基流动 SiliconFlow
+   - Stability AI
+   - Replicate
+   - Cloudflare Workers AI
+   - 自定义端点
+
+   【仅文生图的厂商】
+   - OpenAI DALL-E 3
+   - Azure OpenAI DALL-E
+   - Google Gemini Imagen
+   - Ideogram AI
+   - Together AI
+   - 智谱 AI CogView
+   - 阶跃星辰 Step-1X
+
+2. analyze_image(image_path, prompt="请描述图片的内容。") - 按需解析图片内容。
+   仅在用户明确要求"看看这张图"/"图里有什么"时才调用，勿自动解析。
+
+【QQ 多图处理流程】
+当用户通过 QQ 发送图片并给出创作指令时，按以下步骤处理：
+
+步骤1 - 理解指令：
+  - 用户说"把图片1和图片2融合" → 将两张图片都放入 reference_images
+  - 用户说"把图片1的角色P到图片2的场景里" → 同上，用 prompt 描述融合需求
+  - 用户说"参考图片1的风格生成一张..." → reference_images 只放图片1
+
+步骤2 - 选择是否需要 analyze_image：
+  - 用户明确问"图里有什么/这是什么/帮我看看" → 调用 analyze_image() 解析
+  - 用户直接给出了创作指令 → 不需要解析，直接用 reference_images 图生图
+  - 原则：不浪费 Token，只在用户要求时才解析
+
+步骤3 - 调用 generate_image：
+  - 将用户描述的编号（图片1、图片2…）对应到记忆中的文件路径
+  - prompt 中详细描述用户想要的融合效果
+  - size 根据用户需求设置（如"16:9"）
+
+【示例场景】
+用户发送 3 张图片 + 文字："把图片1的猫和图片2的狗放在图片3的海滩上一起玩耍"
+→ 直接调用 generate_image(prompt="一只猫和一只狗在海滩上一起玩耍，阳光明媚，写实风格", reference_images=["图片1路径", "图片2路径", "图片3路径"], size="16:9")
+→ 不需要先 analyze_image（用户已明确描述了内容）
+
+用户发送 2 张图片 + 文字："图片1里是什么？然后把它改成油画风格"
+→ 先调用 analyze_image("图片1路径") 获取内容描述
+→ 再调用 generate_image(prompt="XXX（基于分析结果），油画风格", reference_images=["图片1路径"], size="1:1")
+
+【图片生成最佳实践】
+- 生成的图片默认保存到 ./downloads/generated_images/ 目录
+- 图片生成耗时较长（10-60秒），请耐心等待
+- 中文 prompt 推荐用豆包/通义万相，人像融合推荐 MiniMax（支持 subject_reference）
+
+【提示词写作技巧】
+- 好 prompt 示例："一只橘猫穿着宇航服，漂浮在色彩斑斓的星云中，赛博朋克风格，电影级光照，4K高清"
+- 添加风格词：油画/水彩/赛博朋克/二次元/写实摄影/极简/复古
+- 添加质感词：4K/高清/细节丰富/柔光/电影级
+
+【配置说明】
+- 默认使用主 API Key，也可在设置中单独配置 image_gen_api_key
+- 切换提供商：在 GUI 设置面板的 "AI 图片生成" 区块选择
+- 支持的全部提供商 key: openai, azure_openai, gemini, stability, cloudflare, replicate, ideogram, together, volcengine, dashscope, zhipu, minimax, siliconflow, stepfun, custom

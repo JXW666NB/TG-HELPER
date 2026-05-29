@@ -22,6 +22,20 @@ from openai import OpenAI
 from config import config
 from skill_manager import SkillManager
 
+
+def _deepseek_sdk_params(model_name):
+    if not model_name or 'deepseek' not in str(model_name).lower():
+        return {}
+    params = {}
+    if getattr(config, 'deepseek_thinking_enabled', False):
+        params['reasoning_effort'] = getattr(config, 'deepseek_reasoning_effort', 'high')
+        params['extra_body'] = {"thinking": {"type": "enabled"}}
+    ctx = getattr(config, 'deepseek_context_window', 0)
+    if ctx:
+        params['max_tokens'] = ctx
+    return params
+
+
 class Tools:
     def __init__(self, memory, confirm_callback=None, output_callback=None, task_scheduler=None, skill_manager=None, gui=None):
         self.memory = memory
@@ -81,23 +95,35 @@ class Tools:
 
     # ==================== 基础系统命令 ====================
     def execute_command(self, command: str, cwd: str = None):
-        """执行系统命令，返回输出（编码安全版）"""
+        """执行系统命令，返回输出（编码安全版，兼容Windows GBK）"""
         try:
             if cwd:
                 cwd = self._expand_path(cwd)
+            env = os.environ.copy()
+            env['PYTHONIOENCODING'] = 'utf-8'
+            env['PYTHONUTF8'] = '1'
             result = subprocess.run(
                 command,
                 shell=True,
                 cwd=cwd,
                 capture_output=True,
-                text=True,
                 timeout=30,
-                encoding='utf-8',
-                errors='replace'
+                env=env
             )
+
+            def _safe_decode(data: bytes) -> str:
+                if not data:
+                    return ""
+                for encoding in ('utf-8', 'gbk', 'gb2312', 'cp936', 'latin-1'):
+                    try:
+                        return data.decode(encoding)
+                    except (UnicodeDecodeError, LookupError):
+                        continue
+                return data.decode('utf-8', errors='replace')
+
             return {
-                "stdout": result.stdout,
-                "stderr": result.stderr,
+                "stdout": _safe_decode(result.stdout),
+                "stderr": _safe_decode(result.stderr),
                 "returncode": result.returncode
             }
         except Exception as e:
@@ -212,6 +238,31 @@ class Tools:
         path = f"./screenshots/screenshot_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
         img.save(path)
         return f"SUCCESS: Screenshot saved to {path}"
+
+    def read_tool_prompt(self, keyword: str):
+        """
+        按关键词查找并读取工具提示词文件（推荐代替 read_file 读取 tool_prompts）。
+        只需传简短关键词，自动匹配完整文件名。例如：
+        - keyword="网络" → 匹配"网络与下载还有浏览器自动化网页操作(...).txt"
+        - keyword="QQ" → 匹配"QQ交互(...).txt"
+        - keyword="桌面" → 匹配"桌面程序自动化(...).txt"
+        """
+        prompt_dir = "./tool_prompts"
+        if not os.path.isdir(prompt_dir):
+            return "ERROR: tool_prompts 目录不存在"
+        keyword_lower = keyword.lower().strip()
+        for fname in os.listdir(prompt_dir):
+            if keyword_lower in fname.lower():
+                filepath = os.path.join(prompt_dir, fname)
+                try:
+                    with open(filepath, 'r', encoding='utf-8') as f:
+                        content = f.read()
+                    return f"SUCCESS: 已读取 {fname}\n\n{content}"
+                except Exception as e:
+                    return f"ERROR: 读取失败: {e}"
+        # 没找到，列出所有可用文件
+        files = [f for f in os.listdir(prompt_dir) if f.endswith('.txt')]
+        return f"ERROR: 未找到包含 '{keyword}' 的工具文件。\n可用文件列表:\n" + "\n".join(f"  - {f}" for f in files)
 
     def install_python_package(self, package_name: str):
         """安装Python包（可配置确认）"""
@@ -341,15 +392,15 @@ CPU使用率: {cpu_percent}%
                 results.append(f"下载失败 {url}: {str(e)}")
         return f"SUCCESS: 批量下载完成。\n" + "\n".join(results)
 
-    def extract_web_content(self, url: str, selector: str = None, extract_type: str = "text"):
-        """提取网页内容（静态）"""
+    def extract_web_content(self, url: str, selector: str = None, extract_type: str = "text", summarize: bool = True):
+        """提取网页内容（静态）。extract_type=html 且 summarize=True 时自动 AI 提炼。"""
         try:
-            import requests
+            import requests as req_lib
             from bs4 import BeautifulSoup
         except ImportError:
             return "ERROR: Missing required libraries 'requests' and 'beautifulsoup4'."
         try:
-            response = requests.get(url, timeout=10)
+            response = req_lib.get(url, timeout=10)
             response.raise_for_status()
             soup = BeautifulSoup(response.text, 'html.parser')
             if selector:
@@ -365,6 +416,10 @@ CPU使用率: {cpu_percent}%
                     content = soup.get_text()
                 else:
                     content = response.text
+            if summarize and len(content) > 3000 and extract_type == "html":
+                summary = self._summarize_with_ai(content, "HTML", f"目标网址: {url}。注意保留关键 URL 链接。")
+                if summary:
+                    return f"SUCCESS: 页面 AI 分析摘要 (原始 {len(content)} 字符):\n{summary}"
             return f"SUCCESS: 提取内容:\n{content[:2000]}" + ("..." if len(content) > 2000 else "")
         except Exception as e:
             return f"ERROR: 提取失败: {str(e)}"
@@ -390,6 +445,23 @@ CPU使用率: {cpu_percent}%
             return f"SUCCESS: 搜索结果:\n{result_text}"
         except Exception as e:
             return f"ERROR: 搜索失败: {str(e)}"
+
+    # ==================== AI 图片生成 ====================
+    def generate_image(self, prompt: str, size: str = None, n: int = 1, reference_images=None):
+        """AI 文生图/图生图：根据文本描述 + 可选参考图生成图片。
+        
+        size 支持: "1024x1024" 像素尺寸 或 "1:1"/"16:9"/"9:16"/"4:3"/"3:4" 等比例字符串。
+        reference_images: 可选，参考图列表（URL、本地路径 或 base64），用于图生图。
+        """
+        try:
+            from image_generator import generate_image as _gen
+        except ImportError:
+            return "ERROR: image_generator 模块未加载。"
+        try:
+            result = _gen(prompt, size=size, n=n, reference_images=reference_images)
+            return result
+        except Exception as e:
+            return f"ERROR: 图片生成失败: {str(e)}"
 
     # ==================== 多模态分析 ====================
     def analyze_image(self, image_path: str, prompt: str = "请描述图片的内容。"):
@@ -434,7 +506,8 @@ CPU使用率: {cpu_percent}%
                     }
                 ],
                 temperature=temperature,
-                max_tokens=max_tokens
+                max_tokens=max_tokens,
+                **_deepseek_sdk_params(model),
             )
             return response.choices[0].message.content
         except Exception as e:
@@ -478,7 +551,8 @@ CPU使用率: {cpu_percent}%
                     }
                 ],
                 temperature=temperature,
-                max_tokens=max_tokens
+                max_tokens=max_tokens,
+                **_deepseek_sdk_params(model),
             )
             return response.choices[0].message.content
         except Exception as e:
@@ -654,8 +728,10 @@ CPU使用率: {cpu_percent}%
             f.write(code)
             tmpfile = f.name
         try:
-            result = subprocess.run(['python', tmpfile], capture_output=True, text=True, timeout=10,
-                                    encoding='utf-8', errors='replace')
+            env = os.environ.copy()
+            env['PYTHONIOENCODING'] = 'utf-8'
+            result = subprocess.run(['python', tmpfile], capture_output=True, text=True, timeout=30,
+                                    encoding='utf-8', errors='replace', env=env)
             output = result.stdout + result.stderr
             return f"SUCCESS: 执行结果:\n{output[:2000]}" + ("..." if len(output) > 2000 else "")
         except subprocess.TimeoutExpired:
@@ -664,6 +740,10 @@ CPU使用率: {cpu_percent}%
             return f"ERROR: 执行失败: {str(e)}"
         finally:
             os.unlink(tmpfile)
+
+    def execute_python(self, code: str):
+        """AI 常用别名，等同于 execute_code（执行Python代码片段）"""
+        return self.execute_code(code)
 
     def git_clone(self, repo_url: str, dest_dir: str = "."):
         """克隆Git仓库"""
@@ -713,6 +793,10 @@ CPU使用率: {cpu_percent}%
         directory = self._expand_path(directory)
         if not os.path.isdir(directory):
             return f"ERROR: 目录不存在: {directory}"
+        if not pattern or not pattern.strip():
+            return "ERROR: pattern 不能为空"
+        if pattern.strip() in ('*', '.', '.*', '?', 'all'):
+            pattern = '[^/]'
         try:
             matches = []
             compiled = re.compile(pattern, re.IGNORECASE)
@@ -820,14 +904,20 @@ CPU使用率: {cpu_percent}%
             output_path = f"{base}_edited{ext}"
         output_path = self._expand_path(output_path)
         try:
-            from moviepy.editor import VideoFileClip, concatenate_videoclips
+            try:
+                from moviepy import VideoFileClip, concatenate_videoclips
+                _MOVIEPY_V2 = True
+            except ImportError:
+                from moviepy.editor import VideoFileClip, concatenate_videoclips
+                _MOVIEPY_V2 = False
         except ImportError:
             return "ERROR: Missing required library 'moviepy'. Please install it using 'pip install moviepy'."
         try:
             if operation == "cut":
                 start_time = kwargs.get('start_time', 0)
                 end_time = kwargs.get('end_time', None)
-                clip = VideoFileClip(input_path).subclip(start_time, end_time)
+                clip = VideoFileClip(input_path)
+                clip = clip.subclipped(start_time, end_time) if _MOVIEPY_V2 else clip.subclip(start_time, end_time)
                 clip.write_videofile(output_path)
             elif operation == "concat":
                 video_list = kwargs.get('videos', [])
@@ -844,6 +934,75 @@ CPU使用率: {cpu_percent}%
             return f"SUCCESS: 视频处理完成，保存到 {output_path}"
         except Exception as e:
             return f"ERROR: 视频编辑失败: {str(e)}"
+
+    # ==================== AI 视频生成 ====================
+    def generate_video(
+        self,
+        prompt: str = None,
+        scenes: list = None,
+        template: str = None,
+        output_path: str = None,
+        bg_music_path: str = None,
+        music_volume: float = 0.3,
+        tts_text: str = None,
+        tts_voice: str = None,
+        images: dict = None,
+        duration: int = 30,
+        fps: int = 24,
+        width: int = 1920,
+        height: int = 1080,
+    ):
+        """
+        AI 视频生成（V2 架构：主Agent给prompt → 子Agent设计HTML → Playwright渲染 → 合成视频）
+
+        推荐用法：只需提供 prompt + images，工具会自动启动子Agent完成所有设计和渲染。
+            generate_video(prompt="制作产品宣传片", images={"logo": "./logo.png"}, bg_music_path="./bgm.mp3")
+
+        prompt: 视频需求描述
+        images: 本地图片 {"名称": "路径", ...}，子Agent可在视频中插入这些图片
+        bg_music_path: 背景音乐文件路径
+        music_volume: 背景音乐音量 0.0-1.0
+        tts_voice: TTS 音色
+        duration: 视频总时长秒数（默认30）
+        fps: 帧率（默认24）
+        width/height: 视频分辨率（默认1920x1080）
+        """
+        try:
+            from video_generator import generate_video as _gen_video
+        except ImportError as e:
+            return f"ERROR: 视频生成模块导入失败: {str(e)}。"
+
+        try:
+            # 展开图片路径
+            expanded_images = None
+            if images:
+                expanded_images = {}
+                for name, path in images.items():
+                    expanded_images[name] = self._expand_path(path)
+
+            if bg_music_path:
+                bg_music_path = self._expand_path(bg_music_path)
+
+            result = _gen_video(
+                prompt=prompt,
+                scenes=scenes,
+                output_path=output_path,
+                bg_music_path=bg_music_path,
+                music_volume=music_volume,
+                tts_voice=tts_voice,
+                images=expanded_images,
+                duration=duration,
+                fps=fps,
+                width=width,
+                height=height,
+            )
+
+            if result.startswith("ERROR"):
+                return result
+            return f"SUCCESS: 视频生成完成，保存到 {result}"
+
+        except Exception as e:
+            return f"ERROR: 视频生成失败: {str(e)}"
 
     # ==================== 串口通信 ====================
     def list_serial_ports(self):
@@ -1083,7 +1242,8 @@ CPU使用率: {cpu_percent}%
                     {"role": "user", "content": prompt}
                 ],
                 temperature=1.0,
-                max_tokens=2000
+                max_tokens=2000,
+                **_deepseek_sdk_params(config.ai_model),
             )
             code = response.choices[0].message.content.strip()
             if code.startswith("```") and code.endswith("```"):
@@ -1446,6 +1606,20 @@ CPU使用率: {cpu_percent}%
         except Exception as e:
             return f"ERROR: 脚本执行失败: {str(e)}"
 
+    # AI 常用别名（这些不是独立工具，只是 browser_evaluate 的别名）
+    def browser_execute_js(self, script, safe=True):
+        return self.browser_evaluate(script, safe)
+
+    def execute_js(self, script, safe=True):
+        return self.browser_evaluate(script, safe)
+
+    def browser_get_element_html(self, selector):
+        """获取指定元素的 outerHTML 内容"""
+        return self.browser_evaluate(
+            f'(()=>{{const el=document.querySelector({selector!r});return el?el.outerHTML:null}})()',
+            safe=True
+        )
+
     def _is_safe_js(self, script: str) -> bool:
         """简单的 JavaScript 安全检查（仅允许只读操作）"""
         dangerous_keywords = [
@@ -1488,24 +1662,6 @@ CPU使用率: {cpu_percent}%
             return "SUCCESS: 表单已提交"
         except Exception as e:
             return f"ERROR: 提交失败: {str(e)}"
-
-    def browser_login(self, url, username, password,
-                      user_selector='input[type="email"], input[name="username"]',
-                      pass_selector='input[type="password"]',
-                      submit_selector='button[type="submit"]',
-                      wait_after=3000):
-        """
-        通用网站登录：打开登录页，填写用户名、密码，点击提交并等待
-        """
-        res = self.browser_navigate(url, wait_until="networkidle")
-        if res.startswith("ERROR"):
-            return res
-        self.browser_fill(user_selector, username)
-        self.browser_fill(pass_selector, password)
-        self.browser_click(submit_selector)
-        time.sleep(wait_after / 1000)
-        page = self._current_page
-        return f"SUCCESS: 已登录 {url}，当前页面标题: {page.title()}"
 
     def browser_wait_for_navigation(self, timeout=10000):
         """等待页面导航完成（网络空闲），用于点击链接后等待加载"""
@@ -2059,14 +2215,77 @@ CPU使用率: {cpu_percent}%
         return "SUCCESS: 百度搜索结果:\n" + "\n".join(results)
 
     # ==================== 增强爬虫工具 ====================
-    def browser_get_page_html(self, max_chars=50000):
-        """获取当前页面完整 HTML 源码（截断），适合 AI 分析页面结构"""
+    def _summarize_with_ai(self, content: str, content_type: str = "HTML", purpose: str = "") -> str:
+        """
+        AI 摘要中间层：将大量原始代码/文本提交给 AI 做信息提炼，
+        只返回关键信息摘要，避免主 Agent 上下文被海量 HTML 撑爆。
+        """
+        try:
+            api_key = getattr(config, 'ai_api_key', '')
+            base_url = getattr(config, 'ai_base_url', '')
+            model = getattr(config, 'ai_model', 'gpt-3.5-turbo')
+            if not api_key or not base_url:
+                return None
+
+            prompt = f"""你是一个专业的信息提取助手。请分析以下{content_type}代码，提取并整理关键信息。
+
+要求：
+1. 提取页面中的核心文本内容（标题、正文、关键描述）
+2. 提取所有重要的 URL 链接（用完整的绝对路径），分类整理为导航链接、资源链接、外部链接等
+3. 识别结构化数据：表格、列表、价格信息、日期、联系方式等
+4. 忽略无关的样式代码、广告脚本、埋点代码
+5. 用简洁的中文分点总结，控制在 2000 字符以内
+{purpose}
+
+{content_type}代码：
+{content[:60000]}"""
+
+            headers = {
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json"
+            }
+            payload = {
+                "model": model,
+                "messages": [
+                    {"role": "system", "content": "你是一个专业的信息提取助手。只返回提取到的关键信息，不闲聊。用中文回答。"},
+                    {"role": "user", "content": prompt}
+                ],
+                "temperature": 0.3,
+                "max_tokens": 2000
+            }
+            # DeepSeek 深度思考模式
+            if 'deepseek' in str(model).lower() and getattr(config, 'deepseek_thinking_enabled', False):
+                payload["thinking"] = {"type": "enabled"}
+                payload["reasoning_effort"] = getattr(config, 'deepseek_reasoning_effort', 'high')
+                ctx = getattr(config, 'deepseek_context_window', 0)
+                if ctx:
+                    payload["max_tokens"] = ctx
+            response = requests.post(
+                f"{base_url}/chat/completions",
+                headers=headers,
+                json=payload,
+                timeout=30
+            )
+            if response.status_code == 200:
+                summary = response.json()["choices"][0]["message"]["content"]
+                return summary
+            return None
+        except Exception as e:
+            return None
+
+    def browser_get_page_html(self, max_chars=50000, summarize=True):
+        """获取当前页面完整 HTML 源码。summarize=True 时自动调用 AI 提取关键信息后返回摘要。"""
         if not hasattr(self, '_current_page'):
             return "ERROR: 未打开任何页面"
         try:
             html = self._current_page.content()
+            original_len = len(html)
+            if summarize and original_len > 3000:
+                summary = self._summarize_with_ai(html, "HTML", "注意保留页面中所有有价值的 URL 链接。")
+                if summary:
+                    return f"SUCCESS: 页面 AI 分析摘要 (原始 {original_len} 字符，已浓缩):\n{summary}\n\n💡 如需查看原始 HTML 中的特定区域，使用 browser_evaluate 定位元素。"
             if len(html) > max_chars:
-                html = html[:max_chars] + f"\n\n... (已截断，原始长度: {len(html)} 字符。可用 browser_evaluate 获取特定数据)"
+                html = html[:max_chars] + f"\n\n... (已截断，原始长度: {original_len} 字符。可用 browser_evaluate 获取特定数据)"
             return f"SUCCESS: 页面 HTML ({len(html)} 字符)\n{html}"
         except Exception as e:
             return f"ERROR: {str(e)}"
@@ -2201,9 +2420,13 @@ CPU使用率: {cpu_percent}%
             return f"ERROR: {str(e)}"
 
     def browser_navigate_smart(self, url, wait_until="networkidle", timeout=45000):
-        """智能导航：自动重试+更长超时+网络错误友好提示"""
+        """智能导航：自动初始化浏览器+重试+超时降级+错误提示（推荐作为首选导航工具）"""
+        # 如果浏览器未启动，自动初始化
         if not hasattr(self, '_current_page') and not hasattr(self, '_browser_by_thread'):
-            return "ERROR: 浏览器未启动，请先调用 browser_navigate"
+            result = self.browser_navigate(url, wait_until=wait_until)
+            if result.startswith("SUCCESS"):
+                return f"SUCCESS: 已自动初始化浏览器并导航到 {url}"
+            return result
         page = getattr(self, '_current_page', None)
         if page:
             try:
@@ -2222,6 +2445,119 @@ CPU使用率: {cpu_percent}%
                     return f"ERROR: 网络连接失败，请检查: 1) 是否需要代理 2) 网站是否可访问 3) DNS是否正常。\n详情: {error_str[:200]}"
                 return f"ERROR: 导航失败: {error_str[:300]}"
         return self.browser_navigate(url, wait_until=wait_until, retries=3)
+
+    # ==================== 浏览器登录 + 人工协助 ====================
+    def browser_login(self, username, password, username_selector=None, password_selector=None, submit_selector=None):
+        """
+        在已打开的登录页面上自动填写账号密码并点击登录。
+        - selector 留空则自动检测常见登录表单（input[type=email], input[name=username] 等）。
+        - 登录后如果出现验证码，请调用 browser_wait_for_human 让用户手动完成。
+        """
+        if not hasattr(self, '_current_page'):
+            return "ERROR: 未打开任何页面，请先调用 browser_navigate 打开登录页面"
+        page = self._current_page
+        try:
+            # 自动检测选择器
+            if not username_selector:
+                for sel in ['input[type="email"]', 'input[name="username"]', 'input[name="account"]',
+                            'input[name="mobile"]', 'input[placeholder*="手机"]', 'input[placeholder*="账号"]',
+                            'input[placeholder*="用户名"]', 'input[placeholder*="邮箱"]', '#username', '#account']:
+                    if page.query_selector(sel):
+                        username_selector = sel
+                        break
+            if not password_selector:
+                for sel in ['input[type="password"]', 'input[name="password"]', '#password']:
+                    if page.query_selector(sel):
+                        password_selector = sel
+                        break
+            if not submit_selector:
+                for sel in ['button[type="submit"]', 'input[type="submit"]', 'button:has-text("登录")',
+                            'button:has-text("登 录")', 'button:has-text("Sign in")', '.login-btn',
+                            '#login-btn', '#submit', '.submit']:
+                    if page.query_selector(sel):
+                        submit_selector = sel
+                        break
+
+            if not username_selector or not password_selector:
+                return "ERROR: 无法自动识别登录表单，请手动指定 username_selector / password_selector"
+            if not submit_selector:
+                return "ERROR: 无法自动识别登录按钮，请手动指定 submit_selector"
+
+            page.fill(username_selector, '')
+            page.type(username_selector, username, delay=random.randint(30, 100))
+            page.fill(password_selector, '')
+            page.type(password_selector, password, delay=random.randint(30, 100))
+            page.click(submit_selector)
+            page.wait_for_load_state("networkidle", timeout=15000)
+            current_url = page.url
+            return f"SUCCESS: 已填写账号密码并点击登录。当前URL: {current_url}\n\n⚠️ 如果需要验证码，请立即调用 browser_wait_for_human 等待用户手动完成验证码。"
+        except Exception as e:
+            return f"ERROR: 登录操作失败: {str(e)}"
+
+    def browser_wait_for_human(self, seconds=120, message="请手动完成验证码操作"):
+        """
+        暂停自动化流程，弹出窗口等待用户手动操作（如输入验证码、滑块验证等）。
+        用户点击"继续"后恢复执行。默认等待120秒。
+        """
+        import threading
+        result = {"done": False}
+
+        def _show_dialog():
+            if self.gui is None:
+                result["done"] = True
+                return
+            try:
+                from PyQt6.QtWidgets import QDialog, QVBoxLayout, QLabel, QPushButton
+                from PyQt6.QtCore import Qt, QTimer
+                def _show_on_main():
+                    dlg = QDialog()
+                    dlg.setWindowTitle("TGAI - 需要你的协助")
+                    dlg.setFixedSize(420, 220)
+                    dlg.setModal(True)
+                    dlg.setWindowFlags(dlg.windowFlags() | Qt.WindowType.WindowStaysOnTopHint)
+                    layout = QVBoxLayout(dlg)
+                    layout.setContentsMargins(20, 20, 20, 20)
+                    hint = QLabel(message)
+                    hint.setWordWrap(True)
+                    hint.setStyleSheet("font-size: 13pt;")
+                    layout.addWidget(hint)
+                    sub = QLabel(f"剩余等待时间：{seconds} 秒")
+                    sub.setStyleSheet("color: gray; font-size: 10pt;")
+                    layout.addWidget(sub)
+                    btn = QPushButton("我已搞定，继续执行 ✅")
+                    btn.setStyleSheet("background-color: #27ae60; color: white; font-weight: bold; padding: 8px 16px; font-size: 12pt;")
+                    btn.clicked.connect(dlg.accept)
+                    layout.addWidget(btn)
+
+                    def _countdown(remaining):
+                        if remaining <= 0:
+                            dlg.reject()
+                            return
+                        sub.setText(f"剩余等待时间：{remaining} 秒")
+                        QTimer.singleShot(1000, lambda: _countdown(remaining - 1))
+
+                    QTimer.singleShot(1000, lambda: _countdown(seconds))
+                    if dlg.exec() == QDialog.DialogCode.Accepted:
+                        result["done"] = True
+                    else:
+                        result["done"] = True
+
+                if hasattr(self.gui, 'schedule_on_main'):
+                    self.gui.schedule_on_main(_show_on_main)
+                else:
+                    from PyQt6.QtCore import QTimer
+                    QTimer.singleShot(0, _show_on_main)
+            except Exception as e:
+                print(f"[browser_wait_for_human] 弹窗失败: {e}")
+                result["done"] = True
+
+        t = threading.Thread(target=_show_dialog, daemon=True)
+        t.start()
+        timeout = max(seconds + 30, 30)
+        t.join(timeout=timeout)
+        if result["done"]:
+            return "SUCCESS: 用户已完成手动操作，继续执行。"
+        return "INFO: 等待超时，自动继续执行（用户可能未操作）。"
 
     # ==================== 内存优化工具 ====================
     def list_processes(self, top_n: int = 30):
@@ -2253,3 +2589,39 @@ CPU使用率: {cpu_percent}%
         """执行完整内存+显存优化"""
         from memory_optimizer import full_optimize as _fo
         return _fo()
+
+    # ==================== 桌面程序自动化工具 ====================
+    def app_launch(self, exe_path: str, working_dir: str = None, args: str = None):
+        """启动 Windows 程序（.exe 或 .lnk 快捷方式）"""
+        from desktop_automation import launch_app
+        return launch_app(exe_path, working_dir, args)
+
+    def app_get_ui_tree(self, title: str = None, max_depth: int = 3):
+        """获取桌面窗口的 UI 控件树，AI 通过它查看窗口中有哪些按钮、文本框等"""
+        from desktop_automation import get_ui_tree
+        return get_ui_tree(title, max_depth)
+
+    def app_click_button(self, button_text: str = None, window_title: str = None, button_id: str = None):
+        """通过按钮文字或 AutomationId 精准点击桌面程序中的按钮，无需坐标"""
+        from desktop_automation import click_button
+        return click_button(window_title=window_title, button_text=button_text, button_id=button_id)
+
+    def app_type_text(self, text: str, window_title: str = None, field_name: str = None):
+        """在当前焦点位置或指定输入框中输入文字"""
+        from desktop_automation import type_into_app
+        return type_into_app(text, window_title, field_name)
+
+    def app_press_keys(self, keys: str):
+        """发送键盘快捷键，如 'Ctrl+V'、'Alt+F4'、'Enter'"""
+        from desktop_automation import press_keys
+        return press_keys(keys)
+
+    def app_screenshot(self, window_title: str = None, save_path: str = None):
+        """截取指定窗口或全屏截图"""
+        from desktop_automation import app_screenshot
+        return app_screenshot(window_title, save_path)
+
+    def app_set_clipboard(self, text: str):
+        """设置剪贴板内容（配合 Ctrl+V 粘贴到不支持直接输入的字段）"""
+        from desktop_automation import set_clipboard
+        return set_clipboard(text)

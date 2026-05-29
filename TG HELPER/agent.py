@@ -104,9 +104,26 @@ class AIAgent:
         tools_guide = """
 【核心原则 - 你必须时刻记住】
 1. **原始目标**：用户的第一次请求就是你的最终目标。每次行动前问自己："这一步是否在推进用户的原始目标？"
-2. **先侦察后行动**：对于网页/爬虫任务，先用 browser_extract_all_text 快速了解页面结构，再精确定位提取。不要盲目猜测选择器。
+2. **先侦察后行动**：对于网页/爬虫任务，先用 browser_extract_all_text 或 browser_get_page_html 完整了解页面结构，确认目标数据的 CSS 选择器或 DOM 路径，再批量提取。不要盲目猜测。
 3. **数据产出优先**：爬虫任务的最终产出是结构化数据（Excel/CSV/文本文件），不是"我看到了什么"。提取完数据立即用 write_excel 或 write_file 保存。
 4. **不要废话**：如果你成功完成了用户的请求，直接 {"finish": true, "message": "已完成：..."}，不要继续探索。
+
+【⚠️ 数据不完整时的处理 - 铁律】
+当你提取的数据缺少某些字段时（如摘要为空、PDF链接缺失），**绝对不能放弃该字段直接输出不完整的Excel**。你必须：
+- 用 browser_get_page_html 获取完整 HTML，人工分析 DOM 结构确定每个字段的准确选择器
+- 或者用 browser_evaluate 逐个排查每个论文条目的内部结构
+- 重新用正确的选择器完整提取，直到所有字段都拿到数据
+- 写 Excel 前检查：标题、作者、日期、分类、摘要、PDF链接、备注——每一列都不能大量空白
+- **不要拿不完整的数据交差！**
+
+【⚡ 工具选择策略 - 必读】
+- **导航**：browser_navigate_smart 是首选，它会自动初始化浏览器、超时降级、网络错误提示。不要再用 browser_navigate。
+- **列表页提取**（搜索列表、商品列表、新闻列表）：优先 browser_scroll_and_extract，一步搞定翻页+数据提取。不要手写 JavaScript 循环。
+- **表格数据**：优先 browser_extract_table，自动导出 CSV。
+- **SPA/动态页面**：用 browser_extract_json_from_script 提取 __NEXT_DATA__ 等内嵌数据。
+- **单元素精确提取**：用 browser_evaluate 执行 document.querySelector 获取特定内容。
+- **执行 Python 代码**：execute_python 或 execute_code，两个名字都可以用。
+- **执行 JavaScript 脚本的参数名是 script**，不是 javascript 或 expression！
 
 【可用工具分类】（路径均为 ./tool_prompts/）：
 - 文件操作（删除、移动、复制、创建目录、获取信息、列出目录）.txt
@@ -127,6 +144,9 @@ class AIAgent:
 - 屏幕截图（截图）.txt
 - 物联网智能家居设备控制（查询设备，发送控制设备指令）.txt
 - 内存优化（进程管理、内存清理、显存清理）.txt
+- 桌面程序自动化（启动APP、查看界面控件、点击按钮、输入文字、截图）.txt
+- AI图片生成（文生图，支持OpenAI豆包阿里自定义）.txt
+- AI视频生成（文本动画、图片插入、AI配音、背景音乐）.txt
 
 【⚠️ 常用工具参数名速查（必须严格使用以下参数名）】
 - 文件类（read_file, write_file, read_file_chunk, write_excel）: filepath（不是 file_path/path/file）
@@ -138,7 +158,7 @@ class AIAgent:
 - 浏览器导航 browser_navigate / browser_navigate_smart: url
 
 【工作流程 - 如何调用工具】
-1. 根据用户需求判断工具分类，使用 read_file 读取对应的分类文件。
+1. **读取工具文档请用 read_tool_prompt(keyword)**，不要用 read_file。例如：read_tool_prompt("网络") 会自动找到网络工具文档。read_tool_prompt("QQ") 找QQ工具文档。read_tool_prompt("文件读写") 找文件工具文档。这个工具不需要完整文件名。
 2. 如果该分类文件之前已读取过，从聊天记录中回忆即可，不要重复读取。
 3. 按文件中的指导调用工具。工具返回 SUCCESS/ERROR/INFO 前缀，但部分工具返回自定义格式，请根据实际返回判断。
 4. 如果工具调用失败，优先根据错误信息尝试修正参数或更换工具，而不是重读文件。
@@ -248,13 +268,29 @@ class AIAgent:
         'data': ['rows', 'items', '数据'],
     }
 
+    # 某些工具的参数名容易被 AI 猜错（针对特定工具的映射）
+    _TOOL_PARAM_OVERRIDES = {
+        'list_directory': {'directory': 'path', 'dir': 'path', 'folder': 'path'},
+        'browser_evaluate': {'javascript': 'script', 'expression': 'script', 'code': 'script', 'js': 'script'},
+        'browser_execute_js': {'javascript': 'script', 'expression': 'script', 'code': 'script', 'js': 'script'},
+        'execute_js': {'javascript': 'script', 'expression': 'script', 'code': 'script', 'js': 'script'},
+    }
+
     def _normalize_action_input(self, action: str, action_input: dict) -> dict:
         """纠正 AI 常见的参数名错误（如 file_path → filepath）"""
         if not action_input:
             return action_input
         normalized = {}
-        # 先收集已知正确参数名
         correct_keys = set(action_input.keys())
+
+        # 优先处理特定工具的覆盖映射
+        tool_overrides = self._TOOL_PARAM_OVERRIDES.get(action, {})
+        for wrong_name, right_name in tool_overrides.items():
+            if wrong_name in action_input and right_name not in action_input:
+                normalized[right_name] = action_input[wrong_name]
+                correct_keys.add(right_name)
+
+        # 通用别名映射
         for correct_name, aliases in self._PARAM_ALIAS_MAP.items():
             if correct_name in action_input:
                 continue
@@ -263,10 +299,8 @@ class AIAgent:
                     normalized[correct_name] = action_input[alias]
                     correct_keys.add(correct_name)
                     break
-        # 保留原始所有键（正确参数优先）
         result = {**normalized, **action_input}
         if result != action_input:
-            renamed = {k: v for k, v in result.items() if k not in action_input or result[k] != action_input[k]}
             if getattr(self.config, 'debug_mode', False):
                 self.system_output_callback(f"[参数纠正] {action}: {action_input} → {result}")
         return result
@@ -312,12 +346,20 @@ class AIAgent:
             "Authorization": f"Bearer {self.config.ai_api_key}",
             "Content-Type": "application/json"
         }
+        model = self.config.ai_model
         payload = {
-            "model": self.config.ai_model,
+            "model": model,
             "messages": messages,
             "temperature": self.config.temperature,
             "max_tokens": self.config.max_tokens
         }
+        # DeepSeek 深度思考模式
+        if 'deepseek' in model.lower() and getattr(self.config, 'deepseek_thinking_enabled', False):
+            payload["thinking"] = {"type": "enabled"}
+            payload["reasoning_effort"] = getattr(self.config, 'deepseek_reasoning_effort', 'high')
+            ctx = getattr(self.config, 'deepseek_context_window', 0)
+            if ctx:
+                payload["max_tokens"] = ctx
         for attempt in range(retries):
             # 每次尝试前立即检查中断
             if hasattr(self, 'stop_event') and self.stop_event.is_set():

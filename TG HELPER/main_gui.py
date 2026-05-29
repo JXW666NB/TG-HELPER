@@ -7,6 +7,7 @@ import os
 import sys
 import time
 import re
+import shutil
 import requests
 import random
 import json
@@ -791,9 +792,21 @@ class AgentGUI(QMainWindow):
     def toggle_fun_mode(self):
         current = self.fun_mode.isChecked()
         self.fun_mode.setChecked(not current)
+        new_state = self.fun_mode.isChecked()
         self.fun_mode_btn.setText(
-            "🔥 热闹模式: 开" if self.fun_mode.isChecked() else "🔥 热闹模式: 关"
+            "🔥 热闹模式: 开" if new_state else "🔥 热闹模式: 关"
         )
+        
+        # 热闹模式切换时，同步切换记忆系统
+        if hasattr(self, '_switch_memory_for_personality'):
+            self._switch_memory_for_personality(self.personality_name)
+        else:
+            # 如果方法还没加载（在gui_handlers.py中），延迟执行
+            from PyQt6.QtCore import QTimer
+            def delayed_switch():
+                if hasattr(self, '_switch_memory_for_personality'):
+                    self._switch_memory_for_personality(self.personality_name)
+            QTimer.singleShot(100, delayed_switch)
 
     def _on_frame_configure(self, event=None):
         pass
@@ -1255,6 +1268,14 @@ class AgentGUI(QMainWindow):
         except Exception as e:
             print(f"[关闭时优化] 失败: {e}")
 
+        # 清理 QQ 图片缓存
+        try:
+            qq_img_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "downloads", "qq_images")
+            if os.path.isdir(qq_img_dir):
+                shutil.rmtree(qq_img_dir, ignore_errors=True)
+        except Exception:
+            pass
+
         try:
             self._save_all_config()
         except Exception as e:
@@ -1391,6 +1412,19 @@ class AgentGUI(QMainWindow):
             "multi_agent_planner_persona": getattr(config, 'multi_agent_planner_persona', 'TGAI'),
             "multi_agent_worker_persona": getattr(config, 'multi_agent_worker_persona', '艾依'),
             "multi_agent_reviewer_persona": getattr(config, 'multi_agent_reviewer_persona', '塔戈'),
+            "image_gen_provider": getattr(config, 'image_gen_provider', 'openai'),
+            "image_gen_api_key": getattr(config, 'image_gen_api_key', ''),
+            "image_gen_base_url": getattr(config, 'image_gen_base_url', ''),
+            "image_gen_model": getattr(config, 'image_gen_model', ''),
+            "image_gen_size": getattr(config, 'image_gen_size', '1024x1024'),
+            "video_tts_provider": getattr(config, 'video_tts_provider', 'edge_tts'),
+            "video_tts_api_key": getattr(config, 'video_tts_api_key', ''),
+            "video_tts_base_url": getattr(config, 'video_tts_base_url', ''),
+            "video_tts_model": getattr(config, 'video_tts_model', ''),
+            "video_tts_voice": getattr(config, 'video_tts_voice', ''),
+            "deepseek_thinking_enabled": getattr(config, 'deepseek_thinking_enabled', False),
+            "deepseek_reasoning_effort": getattr(config, 'deepseek_reasoning_effort', 'high'),
+            "deepseek_context_window": getattr(config, 'deepseek_context_window', 65536),
         })
         with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
             json.dump(cfg, f, indent=2)

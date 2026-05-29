@@ -2,7 +2,7 @@
 
 1. download_video(url, output_dir="./downloads") - 使用 yt-dlp 下载单个网络视频。
 2. batch_download(urls, output_dir) - 批量下载多个视频/文件（urls 为列表）。
-3. extract_web_content(url, selector=None, extract_type="text") - 提取网页内容，支持 CSS 选择器。
+3. extract_web_content(url, selector=None, extract_type="text", summarize=True) - 提取网页内容，支持 CSS 选择器。extract_type="html" 且 summarize=True 时自动 AI 提炼关键信息。
 4. web_search(query, num_results=5) - 使用 Google Custom Search API 搜索网页（需配置 Google API 密钥和 CSE ID）用于备用。
     search_baidu(query, num_results=5) - 使用百度搜索关键词，返回标题、链接和摘要。无需 API Key，适合在国内查找信息，优先使用。
 5. open_browser(url) - 在默认浏览器中打开指定 URL。
@@ -126,9 +126,9 @@
 - 多步操作结束后，请调用 browser_close 关闭浏览器以释放资源。
 
 ## 新增爬虫增强工具
-23. browser_get_page_html(max_chars=50000)
-   - 获取当前页面的完整 HTML 源码，适合 AI 分析页面结构和数据定位。
-   - 自动截断超长页面（默认50000字符），截断后提示使用 browser_evaluate 获取特定数据。
+23. browser_get_page_html(max_chars=50000, summarize=True)
+   - 获取当前页面完整 HTML 源码。**默认自动 AI 提炼**：调用内置 AI 提取键文本、URL、结构化数据，返回摘要，避免上下爆炸。
+   - summarize=False 可关闭自动提炼，返回原始截断 HTML。
 
 24. browser_extract_all_text(max_chars=8000)
    - 提取页面中所有可见文本（去除 script/style/iframe），快速了解页面内容。
@@ -145,16 +145,41 @@
    - 可选保存为 CSV 文件（output_file 参数）。
    - 适合金融数据、排名列表、统计表格等。
 
-27. browser_extract_json_from_script()
+27. browser_extract_json_from_script(key_pattern=None)
    - 自动探测页面中 <script> 标签内的 JSON 数据块（如 Next.js __NEXT_DATA__、Nuxt.js __NUXT__）。
+   - key_pattern 可选，指定筛选包含特定键名的 JSON 块。
    - 列出所有找到的 JSON 块及其顶层键名，方便后续用 browser_evaluate 精准提取。
 
 28. browser_navigate_smart(url, wait_until="networkidle", timeout=45000)
    - 智能导航：超时自动降级为 domcontentloaded，网络错误给出具体排查建议。
    - 比 browser_navigate 更宽容，适合不稳定网络环境。
 
+【🔐 登录与人工协助 - 需要登录的网站专用】
+29. browser_login(username, password, username_selector=None, password_selector=None, submit_selector=None)
+   - 在当前页面上自动填写账号密码并点击登录按钮。
+   - 自动检测常见登录表单（邮箱框、密码框、提交按钮）。
+   - **自动检测失败时**：手动指定 selector 参数。
+   - **关键流程**：browser_navigate(登录页URL) → browser_login(账号, 密码) → 如果需要验证码 → browser_wait_for_human(120)
+
+30. browser_wait_for_human(seconds=120, message="请手动完成验证码操作")
+   - 弹出置顶窗口等待用户手动操作（如输入验证码、滑块验证、手机验证等）。
+   - 用户点击"我已搞定，继续执行"后，AI 自动继续执行后续步骤。
+   - **使用时机**：每次 browser_login 后如果页面没跳转或出现验证码，必须调用此工具。
+   - 默认等待 120 秒，可自定义秒数和提示文字。
+
+【🔐 登录网站完整流程示例】
+用户说"帮我登录淘宝把订单导出来"：
+1. browser_navigate("https://login.taobao.com")  → 打开登录页
+2. browser_login("your_account", "your_password") → 填写登录
+3. browser_wait_for_human(120, "请扫码或输入验证码后点击继续") → 用户手动扫码
+4. browser_navigate("https://buyertrade.taobao.com") → 导航到订单页
+5. browser_extract_all_text() → 提取订单数据
+6. write_excel(filepath="./downloads/淘宝订单.xlsx", ...) → 保存
+
 【爬虫最佳实践 - 务必遵守】
 1. 先浏览后提取：先用 browser_extract_all_text 或 browser_get_page_html 了解页面结构，再精确定位数据。
+   - extract_web_content 和 browser_get_page_html **默认自动 AI 提炼**（无需手动开启），返回关键信息摘要，避免海量 HTML 撑爆上下文。
+   - 如遇代码混淆/信息混杂的网站，AI 提炼机制会自动剥离噪音，提高爬虫效率。
 2. 列表页用 browser_scroll_and_extract：电商/新闻/社交媒体的商品列表、文章列表。
 3. 表格数据用 browser_extract_table：金融、统计、排名。
 4. SPA/现代框架用 browser_extract_json_from_script：Next.js、Nuxt.js 等 SSR 框架的数据通常在 __NEXT_DATA__ 中。

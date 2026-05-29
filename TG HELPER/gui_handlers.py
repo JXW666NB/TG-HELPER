@@ -145,6 +145,12 @@ def _make_entry(frame_layout, row, col=1, password=False):
     return entry
 
 
+def _is_deepseek_model(model_name: str) -> bool:
+    if not model_name:
+        return False
+    return 'deepseek' in model_name.lower()
+
+
 # ==================== API 设置页 ====================
 def create_api_tab(self):
     tab = QWidget()
@@ -178,6 +184,48 @@ def create_api_tab(self):
     _make_label(fl, "Temperature:", 4)
     self.temp_entry.setText(str(getattr(config, 'temperature', 1.0)))
     self.temp_entry.setMaximumWidth(120)
+
+    # ==================== DeepSeek 专属配置 ====================
+    self.deepseek_section, frame_ds, fl_ds = _make_section_outer(self, "🧠 DeepSeek 专属配置")
+
+    self.deepseek_thinking_check = QCheckBox("启用深度思考 (Thinking Mode)")
+    self.deepseek_thinking_check.setChecked(getattr(config, 'deepseek_thinking_enabled', False))
+    self.deepseek_thinking_check.setToolTip("开启后模型会输出思维链内容，提升答案准确性\n注意：思考模式下 temperature 等参数不生效")
+    fl_ds.addWidget(self.deepseek_thinking_check, 0, 0, 1, 2)
+
+    self.deepseek_effort_combo = QComboBox()
+    self.deepseek_effort_combo.addItem("高 (high) - 推荐", "high")
+    self.deepseek_effort_combo.addItem("最大 (max) - 最强推理", "max")
+    saved_effort = getattr(config, 'deepseek_reasoning_effort', 'high')
+    idx = self.deepseek_effort_combo.findData(saved_effort)
+    if idx >= 0:
+        self.deepseek_effort_combo.setCurrentIndex(idx)
+    _make_label(fl_ds, "推理强度:", 1, 0)
+    fl_ds.addWidget(self.deepseek_effort_combo, 1, 1)
+
+    self.deepseek_context_combo = QComboBox()
+    context_options = [
+        ("16K (16384 tokens)", 16384),
+        ("32K (32768 tokens)", 32768),
+        ("64K (65536 tokens) - 推荐", 65536),
+        ("128K (131072 tokens)", 131072),
+        ("256K (262144 tokens)", 262144),
+        ("512K (524288 tokens)", 524288),
+        ("1M (1000000 tokens)", 1000000),
+    ]
+    for label, val in context_options:
+        self.deepseek_context_combo.addItem(label, val)
+    saved_ctx = getattr(config, 'deepseek_context_window', 65536)
+    idx = self.deepseek_context_combo.findData(saved_ctx)
+    if idx >= 0:
+        self.deepseek_context_combo.setCurrentIndex(idx)
+    _make_label(fl_ds, "上下文窗口:", 2, 0)
+    fl_ds.addWidget(self.deepseek_context_combo, 2, 1)
+
+    self.deepseek_section.setVisible(_is_deepseek_model(config.ai_model))
+    layout.addWidget(self.deepseek_section)
+
+    self.model_entry.textChanged.connect(lambda text: self.deepseek_section.setVisible(_is_deepseek_model(text)))
 
     outer2, frame2, fl2 = _make_section_outer(self, "多模态备用模型")
     layout.addWidget(outer2)
@@ -231,6 +279,205 @@ def create_api_tab(self):
     _make_label(fl4, "CSE ID:", 1)
     self.google_cse_entry.setText(getattr(config, 'google_cse_id', ''))
 
+    # ===== AI 图片生成 =====
+    outer5, frame5, fl5 = _make_section_outer(self, "🎨 AI 图片生成（文生图）")
+    layout.addWidget(outer5)
+
+    self.img_provider_combo = QComboBox()
+    _img_providers = [
+        ("OpenAI (DALL-E)", "openai"),
+        ("Azure OpenAI", "azure_openai"),
+        ("Google Gemini Imagen", "gemini"),
+        ("Stability AI (SD)", "stability"),
+        ("Cloudflare Workers AI", "cloudflare"),
+        ("Replicate (FLUX)", "replicate"),
+        ("Ideogram AI", "ideogram"),
+        ("Together AI", "together"),
+        ("字节跳动豆包 (Seedream)", "volcengine"),
+        ("阿里云百炼 (通义万相)", "dashscope"),
+        ("智谱 AI (CogView)", "zhipu"),
+        ("MiniMax (海螺)", "minimax"),
+        ("硅基流动 (SiliconFlow)", "siliconflow"),
+        ("阶跃星辰 (Step-1X)", "stepfun"),
+        ("自定义端点", "custom"),
+    ]
+    for _txt, _key in _img_providers:
+        self.img_provider_combo.addItem(_txt, _key)
+    _cur = getattr(config, 'image_gen_provider', 'openai')
+    _idx = self.img_provider_combo.findData(_cur)
+    if _idx >= 0:
+        self.img_provider_combo.setCurrentIndex(_idx)
+    fl5.addWidget(QLabel("提供商:"), 0, 0)
+    fl5.addWidget(self.img_provider_combo, 0, 1)
+
+    self.img_key_entry = _make_entry(fl5, 1)
+    _make_label(fl5, "API Key:", 1)
+    self.img_key_entry.setEchoMode(QLineEdit.EchoMode.Password)
+    self.img_key_entry.setText(getattr(config, 'image_gen_api_key', ''))
+    self.img_key_entry.setPlaceholderText("留空则复用主 API Key")
+
+    self.img_url_entry = _make_entry(fl5, 2)
+    _make_label(fl5, "Base URL:", 2)
+    self.img_url_entry.setText(getattr(config, 'image_gen_base_url', ''))
+    self.img_url_entry.setPlaceholderText("custom 模式需填写，其他留空")
+
+    self.img_model_entry = _make_entry(fl5, 3)
+    _make_label(fl5, "模型:", 3)
+    self.img_model_entry.setText(getattr(config, 'image_gen_model', ''))
+    self.img_model_entry.setPlaceholderText("留空使用默认模型")
+
+    self.img_size_entry = _make_entry(fl5, 4)
+    _make_label(fl5, "尺寸:", 4)
+    self.img_size_entry.setText(getattr(config, 'image_gen_size', '1024x1024'))
+    self.img_size_entry.setMaximumWidth(140)
+
+    # ===== AI 视频生成 (TTS) =====
+    outer6, frame6, fl6 = _make_section_outer(self, "🎬 AI 视频生成 (TTS 配音)")
+    layout.addWidget(outer6)
+
+    self.video_tts_provider_combo = QComboBox()
+    _video_tts_providers = [
+        ("Edge TTS (免费)", "edge_tts"),
+        ("OpenAI TTS", "openai"),
+        ("字节跳动豆包 TTS", "volcengine"),
+        ("MiniMax TTS", "minimax"),
+        ("自定义端点", "custom"),
+    ]
+    for _txt, _key in _video_tts_providers:
+        self.video_tts_provider_combo.addItem(_txt, _key)
+    _cur_tts = getattr(config, 'video_tts_provider', 'edge_tts')
+    _idx_tts = self.video_tts_provider_combo.findData(_cur_tts)
+    if _idx_tts >= 0:
+        self.video_tts_provider_combo.setCurrentIndex(_idx_tts)
+    fl6.addWidget(QLabel("TTS 提供商:"), 0, 0)
+    fl6.addWidget(self.video_tts_provider_combo, 0, 1)
+
+    self.video_tts_key_entry = _make_entry(fl6, 1)
+    _make_label(fl6, "API Key:", 1)
+    self.video_tts_key_entry.setEchoMode(QLineEdit.EchoMode.Password)
+    self.video_tts_key_entry.setText(getattr(config, 'video_tts_api_key', ''))
+    self.video_tts_key_entry.setPlaceholderText("留空则复用主 API Key")
+
+    self.video_tts_url_entry = _make_entry(fl6, 2)
+    _make_label(fl6, "Base URL:", 2)
+    self.video_tts_url_entry.setText(getattr(config, 'video_tts_base_url', ''))
+    self.video_tts_url_entry.setPlaceholderText("custom 模式需填写，其他留空")
+
+    # 模型下拉框
+    self.video_tts_model_combo = QComboBox()
+    self.video_tts_model_combo.setEditable(True)
+    fl6.addWidget(QLabel("模型:"), 3, 0)
+    fl6.addWidget(self.video_tts_model_combo, 3, 1)
+
+    # 音色下拉框
+    self.video_tts_voice_combo = QComboBox()
+    self.video_tts_voice_combo.setEditable(True)
+    fl6.addWidget(QLabel("音色:"), 4, 0)
+    fl6.addWidget(self.video_tts_voice_combo, 4, 1)
+
+    # TTS 选项数据
+    self._tts_options = {
+        "edge_tts": {
+            "models": [("默认", "")],
+            "voices": [
+                ("晓晓 (女)", "zh-CN-XiaoxiaoNeural"),
+                ("晓伊 (女)", "zh-CN-XiaoyiNeural"),
+                ("云健 (男)", "zh-CN-YunjianNeural"),
+                ("云希 (男)", "zh-CN-YunxiNeural"),
+                ("云夏 (男)", "zh-CN-YunxiaNeural"),
+                ("云扬 (男)", "zh-CN-YunyangNeural"),
+                ("晓涵 (女-台湾)", "zh-TW-HsiaoChenNeural"),
+                ("云哲 (男-台湾)", "zh-TW-YunJheNeural"),
+                ("晓佳 (女-香港)", "zh-HK-HiuMaanNeural"),
+                ("云龙 (男-香港)", "zh-HK-WanLungNeural"),
+            ]
+        },
+        "openai": {
+            "models": [
+                ("TTS-1", "tts-1"),
+                ("TTS-1-HD", "tts-1-hd"),
+            ],
+            "voices": [
+                ("Alloy (中性)", "alloy"),
+                ("Echo (男)", "echo"),
+                ("Fable (男)", "fable"),
+                ("Onyx (男)", "onyx"),
+                ("Nova (女)", "nova"),
+                ("Shimmer (女)", "shimmer"),
+            ]
+        },
+        "volcengine": {
+            "models": [
+                ("豆包 TTS", "doubao-tts"),
+            ],
+            "voices": [
+                ("清新女声", "zh_female_qingxin"),
+                ("温暖女声", "zh_female_wennuan"),
+                ("活泼女声", "zh_female_huopo"),
+                ("知性女声", "zh_female_zhixing"),
+                ("沉稳男声", "zh_male_chenwen"),
+                ("磁性男声", "zh_male_cixing"),
+                ("阳光男声", "zh_male_yangguang"),
+                ("活力男声", "zh_male_huoli"),
+            ]
+        },
+        "minimax": {
+            "models": [
+                ("Speech-01", "speech-01"),
+            ],
+            "voices": [
+                ("青涩男声", "male-qn-qingse"),
+                ("青年男声", "male-qn-jingying"),
+                ("成熟男声", "male-qn-badao"),
+                ("温柔女声", "female-shaonv"),
+                ("成熟女声", "female-chengshu"),
+                ("甜美女声", "female-tianmei"),
+                ("知性女声", "female-yujie"),
+            ]
+        },
+        "custom": {
+            "models": [("默认", "")],
+            "voices": [("默认", "")]
+        }
+    }
+
+    # 初始化模型和音色选项
+    def _update_tts_options():
+        provider = self.video_tts_provider_combo.currentData()
+        options = self._tts_options.get(provider, {"models": [("默认", "")], "voices": [("默认", "")]})
+        
+        # 更新模型
+        current_model = self.video_tts_model_combo.currentText()
+        self.video_tts_model_combo.clear()
+        for name, value in options["models"]:
+            self.video_tts_model_combo.addItem(name, value)
+        # 恢复之前的选择或设置默认值
+        idx = self.video_tts_model_combo.findText(current_model)
+        if idx >= 0:
+            self.video_tts_model_combo.setCurrentIndex(idx)
+        else:
+            saved_model = getattr(config, 'video_tts_model', '')
+            idx = self.video_tts_model_combo.findData(saved_model)
+            if idx >= 0:
+                self.video_tts_model_combo.setCurrentIndex(idx)
+        
+        # 更新音色
+        current_voice = self.video_tts_voice_combo.currentText()
+        self.video_tts_voice_combo.clear()
+        for name, value in options["voices"]:
+            self.video_tts_voice_combo.addItem(name, value)
+        idx = self.video_tts_voice_combo.findText(current_voice)
+        if idx >= 0:
+            self.video_tts_voice_combo.setCurrentIndex(idx)
+        else:
+            saved_voice = getattr(config, 'video_tts_voice', '')
+            idx = self.video_tts_voice_combo.findData(saved_voice)
+            if idx >= 0:
+                self.video_tts_voice_combo.setCurrentIndex(idx)
+
+    self.video_tts_provider_combo.currentIndexChanged.connect(_update_tts_options)
+    _update_tts_options()  # 初始化
+
     btn = QPushButton("💾 保存 API 设置")
     btn.clicked.connect(self.save_api_settings)
     layout.addWidget(btn)
@@ -255,6 +502,22 @@ def save_api_settings(self):
     config.email_password = self.email_pass_entry.text() or None
     config.google_api_key = self.google_key_entry.text() or None
     config.google_cse_id = self.google_cse_entry.text() or None
+    config.image_gen_provider = self.img_provider_combo.currentData()
+    config.image_gen_api_key = self.img_key_entry.text() or None
+    config.image_gen_base_url = self.img_url_entry.text() or None
+    config.image_gen_model = self.img_model_entry.text() or None
+    config.image_gen_size = self.img_size_entry.text() or "1024x1024"
+    # 视频生成 TTS 配置
+    config.video_tts_provider = self.video_tts_provider_combo.currentData()
+    config.video_tts_api_key = self.video_tts_key_entry.text() or None
+    config.video_tts_base_url = self.video_tts_url_entry.text() or None
+    # 支持下拉框选择或手动输入
+    model_data = self.video_tts_model_combo.currentData()
+    model_text = self.video_tts_model_combo.currentText()
+    config.video_tts_model = model_data if model_data else (model_text if model_text else None)
+    voice_data = self.video_tts_voice_combo.currentData()
+    voice_text = self.video_tts_voice_combo.currentText()
+    config.video_tts_voice = voice_data if voice_data else (voice_text if voice_text else None)
     try:
         config.max_tokens = int(self.max_tokens_entry.text())
     except:
@@ -263,6 +526,10 @@ def save_api_settings(self):
         config.temperature = float(self.temp_entry.text())
     except:
         pass
+    config.deepseek_thinking_enabled = self.deepseek_thinking_check.isChecked()
+    config.deepseek_reasoning_effort = self.deepseek_effort_combo.currentData()
+    config.deepseek_context_window = self.deepseek_context_combo.currentData()
+    self.deepseek_section.setVisible(_is_deepseek_model(config.ai_model))
     self._save_all_config()
     QMessageBox.information(self, "保存成功", "API 设置已保存")
 
@@ -1244,12 +1511,18 @@ class MyPlugin(PluginV2):
     response = None
     for attempt in range(max_retries):
         try:
-            completion = client.chat.completions.create(
+            kwargs = dict(
                 model=config.ai_model,
                 messages=messages,
                 temperature=1,
-                max_tokens=8000
-            )
+                max_tokens=8000)
+            if 'deepseek' in config.ai_model.lower() and getattr(config, 'deepseek_thinking_enabled', False):
+                kwargs['reasoning_effort'] = getattr(config, 'deepseek_reasoning_effort', 'high')
+                kwargs['extra_body'] = {"thinking": {"type": "enabled"}}
+                ctx = getattr(config, 'deepseek_context_window', 0)
+                if ctx:
+                    kwargs['max_tokens'] = ctx
+            completion = client.chat.completions.create(**kwargs)
             response = completion.choices[0].message.content
             break
         except Exception as e:
@@ -1620,10 +1893,65 @@ def apply_personality(self, personality_name):
                 json.dump(cfg, f, indent=2)
             self.agent.personality_prompt = p['prompt']
             self.personality_name = personality_name
+            
+            # 切换记忆系统（热闹模式下共用短期记忆，普通模式下独立）
+            self._switch_memory_for_personality(personality_name)
+            
             if config.qq_enabled and p['avatar']:
                 self.set_qq_avatar(p['avatar'])
                 self.set_qq_nickname(personality_name)
             break
+
+
+def _switch_memory_for_personality(self, personality_name):
+    """
+    切换人格时同步切换记忆系统。
+    - 热闹模式(fun_mode)：所有人格共用 "fun_mode" 的短期记忆
+    - 普通模式：每个人格使用独立的记忆目录
+    """
+    from memory import Memory
+    
+    # 判断是否为热闹模式
+    is_fun_mode = hasattr(self, 'fun_mode') and self.fun_mode.isChecked()
+    
+    # 确定目标记忆人格名
+    if is_fun_mode:
+        target_persona = "fun_mode"  # 热闹模式下共用
+    else:
+        target_persona = personality_name  # 普通模式下独立
+    
+    # 如果当前记忆已经是目标人格，无需切换
+    if hasattr(self, 'memory') and self.memory.persona_name == target_persona:
+        return
+    
+    # 关闭当前记忆系统
+    if hasattr(self, 'memory') and self.memory:
+        try:
+            self.memory.shutdown()
+        except Exception as e:
+            print(f"[Memory] 关闭旧记忆系统时出错: {e}")
+    
+    # 初始化新的记忆系统
+    self.memory = Memory(
+        mind_dir=config.memory_dir,
+        persona_name=target_persona,
+        config={
+            "enable_vector": False,
+            "reflection_interval_seconds": 3600,
+            "archive_trigger": 40,
+            "retrieve_limit": 10,
+            "fts_weight": 0.7,
+            "relevance_threshold": 0.35,
+            "time_decay_enabled": True,
+        }
+    )
+    
+    # 更新 agent 的记忆引用
+    if hasattr(self, 'agent') and self.agent:
+        self.agent.memory = self.memory
+    
+    mode_text = "热闹模式(共用)" if is_fun_mode else "独立记忆"
+    print(f"[Memory] 已切换到 {target_persona} 的记忆系统 ({mode_text})")
 
 
 def open_personality_folder(self):
@@ -2795,12 +3123,18 @@ def open_ai_translator(self):
             response = None
             for attempt in range(max_retries):
                 try:
-                    completion = client.chat.completions.create(
+                    kwargs = dict(
                         model=config.ai_model,
                         messages=messages,
                         temperature=1,
-                        max_tokens=8000
-                    )
+                        max_tokens=8000)
+                    if 'deepseek' in config.ai_model.lower() and getattr(config, 'deepseek_thinking_enabled', False):
+                        kwargs['reasoning_effort'] = getattr(config, 'deepseek_reasoning_effort', 'high')
+                        kwargs['extra_body'] = {"thinking": {"type": "enabled"}}
+                        ctx = getattr(config, 'deepseek_context_window', 0)
+                        if ctx:
+                            kwargs['max_tokens'] = ctx
+                    completion = client.chat.completions.create(**kwargs)
                     response = completion.choices[0].message.content
                     break
                 except Exception as e:

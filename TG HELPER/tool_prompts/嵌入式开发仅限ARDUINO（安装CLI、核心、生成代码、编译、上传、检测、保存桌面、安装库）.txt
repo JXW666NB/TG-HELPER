@@ -3,11 +3,12 @@
 1. install_arduino_cli() - 安装 arduino-cli 工具链（自动检测平台并下载）。
 2. install_board_core(board_fqbn) - 安装指定开发板的核心，如 "arduino:avr" 或 "esp32:esp32"。
 3. install_arduino_library(library_name) - 安装 Arduino 库，如 "Adafruit GFX Library"。
-4. write_file(filepath, content) - 写入文件（覆盖或添加）
-5. compile_ino(project_dir, board_fqbn) - 编译指定项目目录（该目录下应有与目录同名的 .ino 文件）。
-6. upload_ino(project_dir, board_fqbn, port) - 上传已编译的项目到指定串口。
-7. auto_detect_board_and_port() - 自动检测已连接的开发板及串口。
-8. save_ino_to_desktop(project_dir, filename="ESP32_LED.ino") - 将生成的 Arduino 项目保存到桌面，供手动上传。
+4. generate_ino_code(description, board_type) - 用 AI 自动生成 Arduino 代码（推荐！比手写 write_file 更可靠）。
+5. write_file(filepath, content) - 写入文件（覆盖或添加）
+6. compile_ino(project_dir=None, ino_path=None, board_fqbn=None) - 编译指定项目目录（该目录下应有与目录同名的 .ino 文件）。也可直接传入 ino_path 编译单个文件。
+7. upload_ino(project_dir, board_fqbn, port) - 上传已编译的项目到指定串口。
+8. auto_detect_board_and_port() - 自动检测已连接的开发板及串口。
+9. save_ino_to_desktop(project_dir, filename="ESP32_LED.ino") - 将生成的 Arduino 项目保存到桌面，供手动上传。
 
 【嵌入式开发（Arduino）快速流程 】：
 1. 根据用户需求， 先调用 create_directory 创建项目目录（例如 ./temp/MyProject），然后自己编写完整的 Arduino 代码（包含 setup 和 loop）。

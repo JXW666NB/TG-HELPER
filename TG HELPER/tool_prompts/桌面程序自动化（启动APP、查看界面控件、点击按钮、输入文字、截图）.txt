@@ -1,0 +1,50 @@
+【桌面程序自动化工具列表】
+
+基于 Windows UI Automation (UIA)，可操控任何 Windows 桌面应用（非浏览器网页）。无需硬编码坐标，AI 通过读取 UI 控件树来理解界面结构。
+
+1. app_launch(exe_path, working_dir=None, args=None) - 启动 Windows 程序。
+   - exe_path 可以是完整的 .exe 路径或 .lnk 快捷方式路径。
+   - 支持从桌面快捷方式启动：exe_path="C:\\Users\\用户名\\Desktop\\PCL2.lnk"
+
+2. app_get_ui_tree(title=None, max_depth=3) - 获取窗口的 UI 控件树（类似 HTML DOM）。
+   - 不传 title 则列出当前所有打开的顶层窗口。
+   - 输出示例：
+     [WindowControl] PCL2
+       [ButtonControl] 启动游戏 (100, 300)
+       [ButtonControl] 设置 (100, 350)
+       [EditControl] 用户名
+   - AI 通过这个输出理解界面有哪些按钮，然后精准点击。
+
+3. app_click_button(button_text=None, window_title=None, button_id=None) - 通过文字或 ID 精准点击按钮。
+   - 例如：app_click_button(button_text="启动游戏") 会在当前窗口中搜索并点击"启动游戏"按钮。
+   - 不需要坐标！比 pyautogui 盲点坐标可靠得多。
+
+4. app_type_text(text, window_title=None, field_name=None) - 在焦点位置或指定输入框中输入文字。
+   - field_name 可选，指定后在窗口中搜索匹配的输入框先聚焦。
+
+5. app_press_keys(keys) - 发送键盘快捷键。例如："Ctrl+V"、"Alt+F4"、"Enter"、"Tab"。
+
+6. app_screenshot(window_title=None, save_path=None) - 截取指定窗口或全屏。保存到 ./screenshots/。
+
+7. app_set_clipboard(text) - 设置剪贴板内容，配合 app_press_keys("Ctrl+V") 使用。
+
+【桌面APP操作流程】
+以"启动PCL2启动器并点击启动游戏"为例：
+1. app_launch("C:\\Users\\用户名\\Desktop\\PCL2.lnk")
+2. app_get_ui_tree(title="PCL2")  → 查看窗口内有哪些按钮
+3. app_click_button(button_text="启动游戏", window_title="PCL2")  → 精准点击
+
+如果要登录桌面软件：
+1. app_launch("路径\\xxx.exe")
+2. app_get_ui_tree(title="xxx")  → 查看登录界面控件
+3. app_click_button(field_name="用户名", window_title="xxx") → 聚焦用户名框
+4. app_type_text("your_username")  → 输入
+5. app_press_keys("Tab")  → 切到密码框
+6. app_type_text("your_password")
+7. app_click_button(button_text="登录", window_title="xxx")
+
+【注意事项】
+- app_click_button 不需要坐标！AI 说出按钮文字即可精准点击。
+- 如果按钮文字是图片（无文本），先用 app_screenshot 截图，通过视觉模型分析后，改用 pyautogui click 坐标。
+- 键盘输入用 app_type_text 或 app_set_clipboard + app_press_keys("Ctrl+V")（某些程序如游戏启动器可能只支持粘贴）。
+- 关闭窗口：app_press_keys("Alt+F4")

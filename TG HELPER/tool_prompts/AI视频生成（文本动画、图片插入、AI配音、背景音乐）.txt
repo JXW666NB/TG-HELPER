@@ -1,0 +1,79 @@
+【工具列表】
+
+1. generate_video(prompt, images, bg_music_path, music_volume, duration, tts_voice, width, height, fps) - AI 视频生成（V4 - 支持CSS动效）
+
+【核心机制】
+
+主Agent只需提供 prompt，工具自动启动**子Agent**完成全部设计和渲染：
+  主Agent → 给出prompt → 大纲规划 → 子Agent设计HTML+CSS(@keyframes动画) → Playwright逐帧捕获 → MoviePy合成MP4
+
+子Agent是独立的AI调用，不会污染主Agent的记忆和上下文。
+
+V4 新能力：**CSS动画逐帧渲染**！子Agent可以用 @keyframes 写动画（淡入、滑入、缩放等），渲染引擎通过 Web Animations API 逐帧seek并截图，实现平滑动效 —— 效果对标 Hyperframes。
+
+【参数说明】
+
+- prompt: 视频需求描述（最重要！描述内容、风格、动画类型等）
+  - 例如："为 TG HELPER 制作一个30秒酷炫的宣传片，深蓝科技风，文字淡入滑入动效"
+
+- images: 本地图片字典 {"名称": "路径", ...}，子Agent可在视频中插入这些图片（可选）
+  - 例如: images={"logo": "./logo.png", "截图": "./screenshots/shot1.png"}
+  - 子Agent会自动在合适场景中使用这些图片（Logo放角落、截图放主体位置）
+
+- bg_music_path: 背景音乐文件路径（可选）
+- music_volume: 背景音乐音量 0.0-1.0（默认0.3）
+- tts_voice: TTS 音色（可选，默认Edge TTS的晓晓女声）
+- duration: 视频总时长秒数（默认30，建议15-60）
+- width: 视频宽度（默认1920，竖屏用1080）
+- height: 视频高度（默认1080，竖屏用1920）
+- fps: 帧率（默认24）
+
+【CSS动画支持】（V4 新增）
+
+子Agent会自动使用CSS @keyframes动画，常用动效类型：
+  - 淡入上浮: opacity 0→1 + translateY(30px→0)
+  - 缩放弹入: opacity 0→1 + scale(0.8→1)
+  - 左/右滑入: opacity 0→1 + translateX(±40px→0)
+  - 文字逐条显现: 不同元素的 animation-delay 错开
+
+渲染引擎会逐帧捕获这些动画，最终视频中的文字和元素会平滑运动，不再是静态幻灯片。
+
+【使用示例】
+
+示例1：生成产品宣传片，带Logo和背景音乐
+```
+generate_video(
+    prompt="为TG HELPER制作一个酷炫的产品宣传片，深蓝科技风，展示AI对话和多模态能力",
+    images={"logo": "./logo.png", "界面截图": "./screenshots/main.png"},
+    bg_music_path="./music/epic.mp3",
+    duration=30
+)
+```
+
+示例2：生成教程视频，插入操作截图
+```
+generate_video(
+    prompt="制作一个Python安装教程视频，步骤清晰，背景干净，每步配截图说明",
+    images={"步骤1": "./screenshots/step1.png", "步骤2": "./screenshots/step2.png"},
+    duration=45
+)
+```
+
+示例3：竖屏社交媒体视频
+```
+generate_video(
+    prompt="制作抖音风格短视频，介绍5个AI冷知识，活泼有趣，弹跳动效",
+    width=1080,
+    height=1920,
+    duration=60
+)
+```
+
+【注意事项】
+
+1. prompt 是你唯一需要关心的核心参数！写得越具体越好
+2. images 中的图片会被自动转为内联格式供子Agent使用
+3. 子Agent会智能排版图片位置（Logo放角落、截图放主区域等）
+4. 子Agent会自动为元素添加CSS动效（淡入、滑入、缩放等）
+5. 生成过程需较长时间，请耐心等待（子Agent设计 + 逐帧渲染 + TTS + 合成）
+6. 所有依赖已在项目中使用，无需额外安装

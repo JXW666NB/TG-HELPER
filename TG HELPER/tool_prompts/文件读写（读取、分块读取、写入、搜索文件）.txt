@@ -1,7 +1,7 @@
 【工具列表】
 
 1. read_file(filepath, max_chars=800000) - 读取文件内容，支持 .txt, .docx, .ino。返回 SUCCESS/ERROR/INFO 开头，文件过长时自动截断并提示使用 read_file_chunk。
-2. read_file_chunk(filepath, start, chunk_size) - 分块读取长文件，返回当前片段及继续指引。
+2. read_file_chunk(filepath, start=0, chunk_size=9000000) - 分块读取长文件，返回当前片段及继续指引。
 3. write_file(filepath, content) - 写入文件（覆盖）。
 4. search_files(directory, pattern, search_content=False) - 在目录中搜索文件名或内容（支持正则）。
 

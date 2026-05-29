@@ -88,6 +88,25 @@ class AgentConfig:
         self.multi_agent_planner_persona = user_config.get("multi_agent_planner_persona", "TGAI")
         self.multi_agent_worker_persona = user_config.get("multi_agent_worker_persona", "艾依")
         self.multi_agent_reviewer_persona = user_config.get("multi_agent_reviewer_persona", "塔戈")
+
+        # ==================== AI 图片生成配置 ====================
+        # 默认提供商: openai / volcengine(字节豆包) / dashscope(阿里通义万相) / custom
+        self.image_gen_provider = user_config.get("image_gen_provider", "openai")
+        self.image_gen_api_key = user_config.get("image_gen_api_key", "")
+        self.image_gen_base_url = user_config.get("image_gen_base_url", "")
+        self.image_gen_model = user_config.get("image_gen_model", "")
+        self.image_gen_size = user_config.get("image_gen_size", "1024x1024")
+        self.image_gen_quality = user_config.get("image_gen_quality", "standard")
+        # ==================== AI 视频生成 TTS 配置 ====================
+        self.video_tts_provider = user_config.get("video_tts_provider", "edge_tts")
+        self.video_tts_api_key = user_config.get("video_tts_api_key", "")
+        self.video_tts_base_url = user_config.get("video_tts_base_url", "")
+        self.video_tts_model = user_config.get("video_tts_model", "")
+        self.video_tts_voice = user_config.get("video_tts_voice", "")
+        # ==================== DeepSeek 专属配置 ====================
+        self.deepseek_thinking_enabled = user_config.get("deepseek_thinking_enabled", False)
+        self.deepseek_reasoning_effort = user_config.get("deepseek_reasoning_effort", "high")
+        self.deepseek_context_window = user_config.get("deepseek_context_window", 65536)
 config = AgentConfig()
 
 # 版本号统一管理

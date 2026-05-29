@@ -125,9 +125,28 @@ class QQBotHandler:
                 self.gui.display_user_message(display_text, source="qq")
 
                 if image_paths or video_paths:
-                    analysis = self._analyze_media(image_paths, video_paths)
-                    if analysis:
-                        self.gui.memory.add_short_term("system", f"QQ 图片/视频分析结果: {analysis}")
+                    if video_paths:
+                        analysis = self._analyze_media([], video_paths)
+                        if analysis:
+                            self.gui.memory.add_short_term("system", f"QQ 视频分析结果: {analysis}")
+                    if image_paths:
+                        saved = []
+                        for i, tmp_path in enumerate(image_paths):
+                            perm_dir = os.path.abspath("./downloads/qq_images")
+                            os.makedirs(perm_dir, exist_ok=True)
+                            ext = os.path.splitext(tmp_path)[1] or ".jpg"
+                            perm_path = os.path.join(perm_dir, f"qq_img_{int(time.time()*1000)}_{i}{ext}")
+                            shutil.copy2(tmp_path, perm_path)
+                            saved.append(perm_path)
+                        numbered = "\n".join([f"  图片{i+1}: {p}" for i, p in enumerate(saved)])
+                        self.gui.memory.add_short_term(
+                            "system",
+                            f"用户通过QQ发送了 {len(saved)} 张参考图（未经AI解析，节省Token）。\n"
+                            f"用户可在指令中引用编号（如图片1、图片2…图片{len(saved)}）。\n"
+                            f"如需图生图，用 generate_image 的 reference_images 参数传入对应路径。\n"
+                            f"{numbered}"
+                        )
+                        image_paths = saved
 
                 self.message_queue.put((msg_type, user_id, group_id, display_text, is_companion))
                 if not self.processing:

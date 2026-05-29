@@ -101,6 +101,7 @@ class MultiAgentOrchestrator:
 【你的角色】你是任务规划专家（Planner）。你不能直接执行任务，只能分析和制定计划。
 【可用工具】你只能使用以下只读工具：
 - read_file(filepath, max_chars=800000) : 读取文件内容
+- read_tool_prompt(keyword) : **推荐代替 read_file 读取工具文档**，只需传简短关键词（如"网络"），自动匹配完整文件名
 - list_directory(path) : 列出目录内容
 - search_files(directory, pattern) : 搜索文件
 - get_file_info(path) : 获取文件/文件夹详细信息
@@ -343,12 +344,13 @@ class MultiAgentOrchestrator:
             f"原始需求：{self.original_request}\n"
             f"当前任务：{task.description}\n"
             "请执行该任务，完成后简短报告结果。如果遇到无法解决的困难，用 '@Planner' 开头说明问题。"
-            f"""所有可用工具都分类存放在 ./tool_prompts/ 文件夹中。你k可以使用以下两个基础工具来读取这些分类文件，获取工具列表和注意事项：
+            f"""所有可用工具都分类存放在 ./tool_prompts/ 文件夹中。你k可以使用以下基础工具来读取分类文件，获取工具列表和注意事项：
 
-- read_file(filepath, max_chars=800000): 读取文本文件内容。路径请使用相对路径，如 "./tool_prompts/文件操作（删除、移动、复制、创建目录、获取信息、列出目录）.txt"。返回内容以 SUCCESS/ERROR/INFO 开头。
+- read_tool_prompt(keyword): **推荐** 只需传简短关键词（如"网络"），自动匹配完整文件名。强烈推荐使用此工具代替 read_file。
+- read_file(filepath, max_chars=800000): 读取文件内容（仅当 read_tool_prompt 找不到时使用）。
 - list_directory(path): 列出目录内容。例如，list_directory("./tool_prompts") 可查看有哪些分类文件。
 
-【可用的工具分类文件】（路径均为 ./tool_prompts/）：
+【可用的工具分类关键词】：
 - 文件操作（删除、移动、复制、创建目录、获取信息、列出目录）.txt
 - 文件读写（读取、分块读取、写入、搜索文件）.txt
 - 系统命令与信息（执行命令、系统信息、py库安装）.txt
