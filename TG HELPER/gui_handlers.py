@@ -49,6 +49,7 @@ def bind_handlers(gui_instance):
     gui_instance.create_model_selector_tab = lambda: create_model_selector_tab(gui_instance)
     gui_instance.create_plugin_tab = lambda: create_plugin_tab(gui_instance)
     gui_instance.create_multi_agent_tab = lambda: create_multi_agent_tab(gui_instance)
+    gui_instance.create_ai_hardware_tab = lambda: create_ai_hardware_tab(gui_instance)
 
     gui_instance.save_api_settings = lambda: save_api_settings(gui_instance)
     gui_instance.save_qq_settings = lambda: save_qq_settings(gui_instance)
@@ -74,6 +75,7 @@ def bind_handlers(gui_instance):
     gui_instance.on_apply_personality = lambda: on_apply_personality(gui_instance)
     gui_instance.apply_personality = lambda name: apply_personality(gui_instance, name)
     gui_instance.open_personality_folder = lambda: open_personality_folder(gui_instance)
+    gui_instance._switch_memory_for_personality = lambda name: _switch_memory_for_personality(gui_instance, name)
 
     gui_instance.export_ai_config = lambda: export_ai_config(gui_instance)
     gui_instance.import_ai_config = lambda: import_ai_config(gui_instance)
@@ -135,6 +137,7 @@ def _make_label(frame_layout, text, row, col=0):
     label = QLabel(text)
     label.setStyleSheet("font-size: 9pt;")
     frame_layout.addWidget(label, row, col)
+    return label
 
 
 def _make_entry(frame_layout, row, col=1, password=False):
@@ -185,14 +188,23 @@ def create_api_tab(self):
     self.temp_entry.setText(str(getattr(config, 'temperature', 1.0)))
     self.temp_entry.setMaximumWidth(120)
 
-    # ==================== DeepSeek 专属配置 ====================
-    self.deepseek_section, frame_ds, fl_ds = _make_section_outer(self, "🧠 DeepSeek 专属配置")
+    # ==================== 深度思考配置 ====================
+    is_ds = _is_deepseek_model(config.ai_model)
+    section_title = "🧠 DeepSeek 专属配置" if is_ds else "🧠 深度思考配置"
+    self.deepseek_section, frame_ds, fl_ds = _make_section_outer(self, section_title)
+
+    # 用户确认模型是否支持深度思考
+    self.model_supports_thinking_check = QCheckBox("确认当前模型支持深度思考（reasoning/thinking）")
+    self.model_supports_thinking_check.setChecked(getattr(config, 'model_supports_thinking', False))
+    self.model_supports_thinking_check.setToolTip("非 DeepSeek 模型（如 Claude、GPT-4o、Kimi 等）如果支持 reasoning/thinking 模式，请勾选此项")
+    fl_ds.addWidget(self.model_supports_thinking_check, 0, 0, 1, 2)
 
     self.deepseek_thinking_check = QCheckBox("启用深度思考 (Thinking Mode)")
     self.deepseek_thinking_check.setChecked(getattr(config, 'deepseek_thinking_enabled', False))
-    self.deepseek_thinking_check.setToolTip("开启后模型会输出思维链内容，提升答案准确性\n注意：思考模式下 temperature 等参数不生效")
-    fl_ds.addWidget(self.deepseek_thinking_check, 0, 0, 1, 2)
+    self.deepseek_thinking_check.setToolTip("开启后模型会输出思维链内容，提升答案准确性\n注意：思考模式下 temperature 等参数可能不生效")
+    fl_ds.addWidget(self.deepseek_thinking_check, 1, 0, 1, 2)
 
+    # DeepSeek 专属：推理强度
     self.deepseek_effort_combo = QComboBox()
     self.deepseek_effort_combo.addItem("高 (high) - 推荐", "high")
     self.deepseek_effort_combo.addItem("最大 (max) - 最强推理", "max")
@@ -200,9 +212,10 @@ def create_api_tab(self):
     idx = self.deepseek_effort_combo.findData(saved_effort)
     if idx >= 0:
         self.deepseek_effort_combo.setCurrentIndex(idx)
-    _make_label(fl_ds, "推理强度:", 1, 0)
-    fl_ds.addWidget(self.deepseek_effort_combo, 1, 1)
+    self.effort_label = _make_label(fl_ds, "推理强度:", 2, 0)
+    fl_ds.addWidget(self.deepseek_effort_combo, 2, 1)
 
+    # DeepSeek 专属：上下文窗口
     self.deepseek_context_combo = QComboBox()
     context_options = [
         ("16K (16384 tokens)", 16384),
@@ -219,13 +232,48 @@ def create_api_tab(self):
     idx = self.deepseek_context_combo.findData(saved_ctx)
     if idx >= 0:
         self.deepseek_context_combo.setCurrentIndex(idx)
-    _make_label(fl_ds, "上下文窗口:", 2, 0)
-    fl_ds.addWidget(self.deepseek_context_combo, 2, 1)
+    self.context_label = _make_label(fl_ds, "上下文窗口:", 3, 0)
+    fl_ds.addWidget(self.deepseek_context_combo, 3, 1)
 
-    self.deepseek_section.setVisible(_is_deepseek_model(config.ai_model))
+    # 控制深度思考开关的可见性：只有用户确认支持后才显示
+    self.deepseek_thinking_check.setVisible(getattr(config, 'model_supports_thinking', False))
+
+    # 控制 DeepSeek 专属选项的可见性
+    self.deepseek_effort_combo.setVisible(is_ds)
+    self.effort_label.setVisible(is_ds)
+    self.deepseek_context_combo.setVisible(is_ds)
+    self.context_label.setVisible(is_ds)
+
     layout.addWidget(self.deepseek_section)
 
-    self.model_entry.textChanged.connect(lambda text: self.deepseek_section.setVisible(_is_deepseek_model(text)))
+    def _update_deepseek_ui(model_text):
+        is_ds_model = _is_deepseek_model(model_text)
+        # 更新区域标题
+        self.deepseek_section.setTitle("🧠 DeepSeek 专属配置" if is_ds_model else "🧠 深度思考配置")
+        # DeepSeek 专属选项
+        self.deepseek_effort_combo.setVisible(is_ds_model)
+        self.effort_label.setVisible(is_ds_model)
+        self.deepseek_context_combo.setVisible(is_ds_model)
+        self.context_label.setVisible(is_ds_model)
+
+    self.model_entry.textChanged.connect(_update_deepseek_ui)
+
+    def _on_thinking_support_changed(checked):
+        self.deepseek_thinking_check.setVisible(checked)
+        if not checked:
+            self.deepseek_thinking_check.setChecked(False)
+        # 实时保存配置
+        config.model_supports_thinking = checked
+        self._save_all_config()
+
+    self.model_supports_thinking_check.toggled.connect(_on_thinking_support_changed)
+
+    def _on_thinking_enabled_changed(checked):
+        # 实时保存配置
+        config.deepseek_thinking_enabled = checked
+        self._save_all_config()
+
+    self.deepseek_thinking_check.toggled.connect(_on_thinking_enabled_changed)
 
     outer2, frame2, fl2 = _make_section_outer(self, "多模态备用模型")
     layout.addWidget(outer2)
@@ -526,6 +574,7 @@ def save_api_settings(self):
         config.temperature = float(self.temp_entry.text())
     except:
         pass
+    config.model_supports_thinking = self.model_supports_thinking_check.isChecked()
     config.deepseek_thinking_enabled = self.deepseek_thinking_check.isChecked()
     config.deepseek_reasoning_effort = self.deepseek_effort_combo.currentData()
     config.deepseek_context_window = self.deepseek_context_combo.currentData()
@@ -2003,6 +2052,15 @@ def create_debug_tab(self):
     self.browser_headful_check.toggled.connect(toggle_browser_headful)
     layout.addWidget(self.browser_headful_check)
 
+    def toggle_show_ai_thinking(checked):
+        config.show_ai_thinking = checked
+        self._save_all_config()
+
+    self.show_ai_thinking_check = QCheckBox("在聊天框中显示AI的思考内容")
+    self.show_ai_thinking_check.setChecked(getattr(config, 'show_ai_thinking', False))
+    self.show_ai_thinking_check.toggled.connect(toggle_show_ai_thinking)
+    layout.addWidget(self.show_ai_thinking_check)
+
     # ====== 内存优化区域 ======
     outer_mem, frame_mem, fl_mem = _make_section_outer(self, "内存优化")
     layout.addWidget(outer_mem)
@@ -2622,6 +2680,13 @@ def save_multi_agent_settings(self):
         self.multi_agent_orchestrator.configure(False, "", "", "")
         self.toggle_multi_agent_btn_visibility(False)
         QMessageBox.information(self, "成功", "多Agent模式已禁用")
+
+
+def create_ai_hardware_tab(self):
+    """创建AI硬件设置选项卡"""
+    from ai_hardware.gui import AIHardwareTab
+    tab = AIHardwareTab(self)
+    self.notebook.addTab(tab, "AI硬件")
 
 
 # ==================== 关于对话框 ====================

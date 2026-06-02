@@ -1,6 +1,6 @@
 【工具列表】
 
-1. generate_video(prompt, images, bg_music_path, music_volume, duration, tts_voice, width, height, fps) - AI 视频生成（V4 - 支持CSS动效）
+1. generate_video(prompt, images, bg_music_path, music_volume, duration, tts_voice, width, height, fps) - AI 视频生成（V4 - 支持CSS动效 + AI图片生成 + 自动BGM）
 
 【核心机制】
 
@@ -9,7 +9,10 @@
 
 子Agent是独立的AI调用，不会污染主Agent的记忆和上下文。
 
-V4 新能力：**CSS动画逐帧渲染**！子Agent可以用 @keyframes 写动画（淡入、滑入、缩放等），渲染引擎通过 Web Animations API 逐帧seek并截图，实现平滑动效 —— 效果对标 Hyperframes。
+V4 新能力：
+- **CSS动画逐帧渲染**！子Agent可以用 @keyframes 写动画（淡入、滑入、缩放等），渲染引擎通过 Web Animations API 逐帧seek并截图，实现平滑动效 —— 效果对标 Hyperframes。
+- **AI图片生成**！子Agent可在HTML中通过 [GEN_IMG:描述] 自动调用AI图片生成，程序会自动要求白底、生成后去除白底，输出透明PNG用于叠加装饰。通过 [GEN_BG:描述] 可生成全屏背景图（不做白底处理）。前提：用户在设置中配置了图片生成API。
+- **自动BGM合成**！子Agent输出JSON中的 music_style 字段会触发本地算法合成背景音乐（零API）。如不填则视频无声。
 
 【参数说明】
 
@@ -20,7 +23,7 @@ V4 新能力：**CSS动画逐帧渲染**！子Agent可以用 @keyframes 写动�
   - 例如: images={"logo": "./logo.png", "截图": "./screenshots/shot1.png"}
   - 子Agent会自动在合适场景中使用这些图片（Logo放角落、截图放主体位置）
 
-- bg_music_path: 背景音乐文件路径（可选）
+- bg_music_path: 背景音乐文件路径（可选，不填则自动本地合成BGM）
 - music_volume: 背景音乐音量 0.0-1.0（默认0.3）
 - tts_voice: TTS 音色（可选，默认Edge TTS的晓晓女声）
 - duration: 视频总时长秒数（默认30，建议15-60）
@@ -77,3 +80,5 @@ generate_video(
 4. 子Agent会自动为元素添加CSS动效（淡入、滑入、缩放等）
 5. 生成过程需较长时间，请耐心等待（子Agent设计 + 逐帧渲染 + TTS + 合成）
 6. 所有依赖已在项目中使用，无需额外安装
+7. 💡 不需要 bg_music_path 时，子Agent会自动根据 music_style 生成BGM（"大气"→史诗、"科技"→电子、"温暖"→治愈等）
+8. 🎵 如需独立生成音乐（非视频用途），使用 generate_music(duration=30, style="tech", key="C") 工具

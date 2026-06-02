@@ -95,13 +95,24 @@ class AIAgent:
     def _build_system_prompt(self):
         if self.custom_system_prompt is not None:
             return self.custom_system_prompt
-        base_identity = "你是一个全能AI助手，是用户的私人助手，不是任何其他公司的产品（如Claude、ChatGPT等）。"
+        base_identity = "你是一个全能AI助手，名为TGAI，是用户的私人助手，不是任何其他公司的产品（如Claude、ChatGPT等）。"
         if self.personality_prompt:
             system_head = self.personality_prompt
         else:
             system_head = base_identity
 
         tools_guide = """
+【思考模式 - 必须严格遵守】
+1. 每次回复前，先在 <think>...</think> 标签中写出你的完整思考过程：
+   - 用户想要什么？原始目标是什么？
+   - 我需要调用什么工具？参数怎么填？
+   - 上一步工具返回的结果说明了什么？
+   - 下一步该做什么？是否在推进原始目标？
+2. <think> 中的内容用户看不到，你可以自由分析、推理、纠错。
+3. 思考完成后，在 <final>...</final> 标签中输出最终内容。
+4. 绝对禁止在 <final> 之外输出任何分析、解释、废话。
+5. <final> 标签内部必须是纯 JSON 对象（不含代码块标记）。
+
 【核心原则 - 你必须时刻记住】
 1. **原始目标**：用户的第一次请求就是你的最终目标。每次行动前问自己："这一步是否在推进用户的原始目标？"
 2. **先侦察后行动**：对于网页/爬虫任务，先用 browser_extract_all_text 或 browser_get_page_html 完整了解页面结构，确认目标数据的 CSS 选择器或 DOM 路径，再批量提取。不要盲目猜测。
@@ -147,6 +158,7 @@ class AIAgent:
 - 桌面程序自动化（启动APP、查看界面控件、点击按钮、输入文字、截图）.txt
 - AI图片生成（文生图，支持OpenAI豆包阿里自定义）.txt
 - AI视频生成（文本动画、图片插入、AI配音、背景音乐）.txt
+- AI音乐作曲（子Agent架构，LLM作曲+多乐器，对标Suno）.txt
 
 【⚠️ 常用工具参数名速查（必须严格使用以下参数名）】
 - 文件类（read_file, write_file, read_file_chunk, write_excel）: filepath（不是 file_path/path/file）
@@ -164,10 +176,12 @@ class AIAgent:
 4. 如果工具调用失败，优先根据错误信息尝试修正参数或更换工具，而不是重读文件。
 
 【输出格式 - 铁律】
-你的输出必须是纯 JSON 对象（不含代码块标记），格式：
-  {"thought": "当前思考", "message": "对用户说的话", "action": "工具名", "action_input": {参数}}
+你的完整输出格式必须是：
+  <think>你的内部思考过程...</think>
+  <final>{"thought": "当前思考", "message": "对用户说的话", "action": "工具名", "action_input": {参数}}</final>
   或
-  {"finish": true, "message": "最终回复"}
+  <think>你的内部思考过程...</think>
+  <final>{"finish": true, "message": "最终回复"}</final>
 
 【重要！长内容规则】
 生成超过500字符的代码/文档/数据时，绝对不要放在 message 字段！使用 write_file 写入文件，message 只说"已生成文件 xxx"。
@@ -181,8 +195,11 @@ class AIAgent:
 - 长期记忆仅供了解用户背景，绝对不能自动执行记忆中的旧任务。以当前用户消息为准。
 
 【JSON 示例】
-{"thought": "需要搜索", "message": "正在搜索...", "action": "search_baidu", "action_input": {"query": "Python教程"}}
-{"thought": "任务完成", "message": "搜索结果已保存为 result.xlsx，共找到15条相关数据。", "finish": true}
+<think>用户需要搜索Python教程，我应该使用搜索工具。</think>
+<final>{"thought": "需要搜索", "message": "正在搜索...", "action": "search_baidu", "action_input": {"query": "Python教程"}}</final>
+
+<think>搜索完成，结果已保存，任务达成。</think>
+<final>{"thought": "任务完成", "message": "搜索结果已保存为 result.xlsx，共找到15条相关数据。", "finish": true}</final>
 """
         # 动态追加插件注册的工具说明
         plugin_tools_text = ""
@@ -213,7 +230,7 @@ class AIAgent:
         # 注入原始目标提醒
         goal_reminder = ""
         if hasattr(self, '_original_goal') and self._original_goal:
-            goal_reminder = f"\n\n【🎯 你的原始任务目标】{self._original_goal}\n请在每一步行动前确认：这一步是否在推进此目标？任务完成后立即 finish。"
+            goal_reminder = f"\n\n【🎯 你的原始任务目标】{self._original_goal}\n你可以完全信任你的记忆内容，不需要质疑，干过的事情不要再干了，请在每一步行动前确认：这一步是否在推进此目标？任务完成后立即 finish。"
         full_content = (
             system_prompt +
             goal_reminder +
@@ -353,13 +370,26 @@ class AIAgent:
             "temperature": self.config.temperature,
             "max_tokens": self.config.max_tokens
         }
-        # DeepSeek 深度思考模式
-        if 'deepseek' in model.lower() and getattr(self.config, 'deepseek_thinking_enabled', False):
-            payload["thinking"] = {"type": "enabled"}
-            payload["reasoning_effort"] = getattr(self.config, 'deepseek_reasoning_effort', 'high')
-            ctx = getattr(self.config, 'deepseek_context_window', 0)
-            if ctx:
-                payload["max_tokens"] = ctx
+        # 深度思考模式（DeepSeek 或其他支持 thinking 的模型）
+        thinking_enabled = getattr(self.config, 'deepseek_thinking_enabled', False)
+        is_deepseek = 'deepseek' in model.lower()
+        if thinking_enabled:
+            if is_deepseek:
+                # DeepSeek 专属参数
+                payload["thinking"] = {"type": "enabled"}
+                payload["reasoning_effort"] = getattr(self.config, 'deepseek_reasoning_effort', 'high')
+                ctx = getattr(self.config, 'deepseek_context_window', 0)
+                if ctx:
+                    payload["max_tokens"] = ctx
+            else:
+                # 其他支持 thinking 的模型，使用通用 reasoning_effort 参数
+                payload["reasoning_effort"] = getattr(self.config, 'deepseek_reasoning_effort', 'high')
+
+        # DeepSeek + 深度思考模式：使用流式输出
+        if is_deepseek and thinking_enabled:
+            return self._call_cloud_api_stream(messages, headers, payload)
+
+        # 非DeepSeek或关闭深度思考：使用普通请求
         for attempt in range(retries):
             # 每次尝试前立即检查中断
             if hasattr(self, 'stop_event') and self.stop_event.is_set():
@@ -372,7 +402,25 @@ class AIAgent:
                     timeout=999
                 )
                 response.raise_for_status()
-                return response.json()["choices"][0]["message"]["content"]
+                data = response.json()
+                choice = data["choices"][0]
+                message = choice["message"]
+                content = message.get("content", "")
+
+                # 检查是否有 reasoning_content（深度思考内容）
+                reasoning_content = message.get("reasoning_content", "")
+                if not reasoning_content:
+                    # 部分API可能放在其他字段
+                    reasoning_content = message.get("reasoning", "")
+                if not reasoning_content:
+                    # 有些API在 thinking 字段
+                    reasoning_content = message.get("thinking", "")
+
+                # 如果有思考内容，包装成 <think> 标签格式
+                if reasoning_content and thinking_enabled:
+                    return f"<think>{reasoning_content}</think>\n<final>{content}</final>"
+
+                return content
             except requests.exceptions.HTTPError as e:
                 if e.response.status_code == 429 and attempt < retries - 1:
                     delay = base_delay * (2 ** attempt)
@@ -388,6 +436,68 @@ class AIAgent:
                 return json.dumps({"finish": True, "message": f"AI调用失败：{str(e)}"})
         return json.dumps({"finish": True, "message": "AI调用失败：多次重试后仍失败"})
 
+    def _call_cloud_api_stream(self, messages: List[Dict], headers: dict, payload: dict) -> str:
+        """DeepSeek 流式输出：实时获取 reasoning_content 和 content"""
+        payload["stream"] = True
+        reasoning_content = ""
+        content = ""
+        last_update_len = 0
+
+        try:
+            response = requests.post(
+                f"{self.config.ai_base_url}/chat/completions",
+                headers=headers,
+                json=payload,
+                stream=True,
+                timeout=999
+            )
+            response.raise_for_status()
+
+            for line in response.iter_lines():
+                # 检查中断
+                if hasattr(self, 'stop_event') and self.stop_event.is_set():
+                    return "__INTERRUPT__"
+
+                if not line:
+                    continue
+
+                line_str = line.decode('utf-8')
+                if line_str.startswith('data: '):
+                    data_str = line_str[6:]
+                    if data_str == '[DONE]':
+                        break
+                    try:
+                        chunk = json.loads(data_str)
+                        delta = chunk.get("choices", [{}])[0].get("delta", {})
+
+                        # 流式获取思考内容
+                        if "reasoning_content" in delta and delta["reasoning_content"]:
+                            reasoning_content += delta["reasoning_content"]
+                            # 每积累一定长度或收到新内容时更新GUI（避免过于频繁的UI刷新）
+                            if len(reasoning_content) - last_update_len >= 5:
+                                last_update_len = len(reasoning_content)
+                                # 实时回调给GUI显示思考过程
+                                if hasattr(self, 'system_output_callback') and self.system_output_callback:
+                                    self.system_output_callback(f"[THINK_STREAM]{reasoning_content}[/THINK_STREAM]")
+
+                        # 流式获取最终内容
+                        if "content" in delta and delta["content"]:
+                            content += delta["content"]
+                    except json.JSONDecodeError:
+                        continue
+
+            # 流结束后，确保最后一次思考内容也发送给GUI
+            if reasoning_content and last_update_len < len(reasoning_content):
+                if hasattr(self, 'system_output_callback') and self.system_output_callback:
+                    self.system_output_callback(f"[THINK_STREAM]{reasoning_content}[/THINK_STREAM]")
+
+            # 返回完整结果
+            if reasoning_content:
+                return f"<think>{reasoning_content}</think>\n<final>{content}</final>"
+            return content
+        except Exception as e:
+            return json.dumps({"finish": True, "message": f"AI流式调用失败：{str(e)}"})
+
     def run(self, user_input: str):
         self.memory.add_short_term("用户", user_input)
         self._original_goal = user_input[:300]
@@ -396,6 +506,30 @@ class AIAgent:
         last_action = None
         last_action_input = None
         action_history = []
+
+        def extract_think_final(text):
+            """提取 <think> 和 <final> 标签内容，返回 (think_content, final_content)"""
+            if not isinstance(text, str):
+                text = str(text)
+            think_content = ""
+            final_content = text
+
+            # 提取 <think>...</think>
+            think_match = re.search(r'<think>([\s\S]*?)</think>', text, re.DOTALL)
+            if think_match:
+                think_content = think_match.group(1).strip()
+
+            # 提取 <final>...</final>
+            final_match = re.search(r'<final>([\s\S]*?)</final>', text, re.DOTALL)
+            if final_match:
+                final_content = final_match.group(1).strip()
+            else:
+                # 兼容旧格式：没有 <final> 标签时，尝试提取 JSON
+                final_match = re.search(r'\{[\s\S]*?\}', text, re.DOTALL)
+                if final_match:
+                    final_content = final_match.group(0).strip()
+
+            return think_content, final_content
 
         def extract_json(text):
             if not isinstance(text, str):
@@ -441,6 +575,11 @@ class AIAgent:
             if context_len > 500000:
                 self.system_output_callback(f"⚠️ 上下文过长({context_len}字符)，可能导致AI遗忘目标。建议简化任务。")
 
+            # 每次调用LLM前，通知GUI清除当前轮次的思考气泡标记
+            # 这样同一轮次中多次调用LLM时，每次都会创建新的思考气泡
+            if hasattr(self, 'system_output_callback') and self.system_output_callback:
+                self.system_output_callback("[CLEAR_THINK_MARKERS]")
+
             try:
                 ai_response_str = self.call_llm(messages)
             except Exception as e:
@@ -454,7 +593,20 @@ class AIAgent:
                 self.memory.add_short_term("系统消息", "任务已被用户中断")
                 break
 
-            ai_response_str = extract_json(ai_response_str)
+            # 提取 think 和 final 内容
+            think_content, final_content = extract_think_final(ai_response_str)
+
+            # 如果有思考内容，通过系统输出回调传递（供GUI选择是否显示）
+            # 注意：流式模式下思考内容已经在流式过程中实时发送过了，这里不再重复发送
+            if think_content:
+                # 检查是否是流式模式返回的结果（包含<final>标签说明是流式模式）
+                is_stream_result = '<final>' in ai_response_str and '</final>' in ai_response_str
+                if not is_stream_result:
+                    # 非流式模式：一次性发送思考内容
+                    if hasattr(self, 'system_output_callback') and self.system_output_callback:
+                        self.system_output_callback(f"[THINK]{think_content}[/THINK]")
+
+            ai_response_str = extract_json(final_content)
 
             try:
                 parsed = json.loads(ai_response_str)
@@ -482,7 +634,7 @@ class AIAgent:
                     record_content = f"{self.personality_name}: {ai_response.get('message', '')}"
                 else:
                     record_content = f"AI: {ai_response.get('message', '')}"
-                self.memory.add_short_term("你（AI）", record_content)
+                self.memory.add_short_term("你", record_content)
                 break
 
             action = ai_response.get("action")
@@ -543,7 +695,7 @@ class AIAgent:
                 record_content = f"{self.personality_name}: {assistant_full}"
             else:
                 record_content = f"AI: {assistant_full}"
-            self.memory.add_short_term("你（AI）", record_content)
+            self.memory.add_short_term("你", record_content)
 
         if iteration >= max_iterations:
             self.system_output_callback("任务步骤过多，已自动停止。请简化您的需求。")

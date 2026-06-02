@@ -1004,6 +1004,49 @@ CPU使用率: {cpu_percent}%
         except Exception as e:
             return f"ERROR: 视频生成失败: {str(e)}"
 
+    # ==================== AI 作曲 (子Agent架构) ====================
+    def compose_music(
+        self,
+        prompt: str,
+        duration: float = 60,
+        key: str = "C",
+        bpm: int = None,
+    ):
+        """
+        AI 作曲（子Agent架构）：主Agent只需提供 prompt，子Agent(LLM+乐理)
+        自动设计音乐结构、编写旋律、配器，最后渲染为 MP3 + MIDI。
+
+        架构: 主Agent→子Agent(LLM+乐理)→JSON→MIDI→多乐器合成→MP3
+
+        支持的乐器: 钢琴、小提琴、大提琴、吉他、贝斯、长笛、双簧管、
+                   小号、萨克斯、弦乐合奏、合成器、合唱、架子鼓等 20+ 种
+
+        参数:
+          prompt: 音乐创作需求描述（风格、乐器、情绪、参考等）
+          duration: 时长(秒)，默认60
+          key: 调性 C/D/E/F/G/A/B
+          bpm: 速度(可选)
+
+        返回: MP3 文件路径（同时生成同名 .mid 文件）
+        """
+        try:
+            from music_composer import compose_music as _compose
+        except ImportError:
+            return "ERROR: AI作曲模块不可用。"
+
+        try:
+            result = _compose(
+                prompt=prompt,
+                duration=duration,
+                key=key.upper() if key else "C",
+                bpm=bpm,
+            )
+            if result.startswith("ERROR"):
+                return result
+            return f"SUCCESS: AI作曲完成，MP3文件路径: {result}（同时生成MIDI文件）"
+        except Exception as e:
+            return f"ERROR: AI作曲失败: {str(e)}"
+
     # ==================== 串口通信 ====================
     def list_serial_ports(self):
         """列出可用串口"""

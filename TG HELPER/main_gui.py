@@ -501,6 +501,7 @@ class AgentGUI(QMainWindow):
         self.create_local_model_tab()
         self.create_model_selector_tab()
         self.create_multi_agent_tab()
+        self.create_ai_hardware_tab()
 
         self.display_assistant_message("你好世界！今天可以帮到什么吗？")
 
@@ -628,6 +629,48 @@ class AgentGUI(QMainWindow):
             print(f"[GUI] 创建系统消息气泡失败(信号槽): {e}")
 
     def _create_system_bubble(self, text):
+        # 检测是否是清除思考标记的指令
+        if text == "[CLEAR_THINK_MARKERS]":
+            self._clear_think_bubble_markers()
+            return
+
+        # 检测是否是流式AI思考内容（实时更新）
+        stream_match = re.match(r'\[THINK_STREAM\](.*?)\[/THINK_STREAM\]', text, re.DOTALL)
+        if stream_match:
+            think_content = stream_match.group(1).strip()
+            # 检查用户是否开启了显示思考内容
+            show_thinking = getattr(config, 'show_ai_thinking', False)
+            if not show_thinking:
+                return  # 不显示思考内容
+            # 使用流式更新方法（更新现有气泡或创建新气泡）
+            self._update_or_create_think_bubble(think_content)
+            return
+
+        # 检测是否是普通AI思考内容（一次性）
+        think_match = re.match(r'\[THINK\](.*?)\[/THINK\]', text, re.DOTALL)
+        if think_match:
+            think_content = think_match.group(1).strip()
+            # 检查用户是否开启了显示思考内容
+            show_thinking = getattr(config, 'show_ai_thinking', False)
+            if not show_thinking:
+                return  # 不显示思考内容
+            frame = QFrame(self.message_container)
+            frame.setFrameShape(QFrame.Shape.NoFrame)
+            layout = QHBoxLayout(frame)
+            layout.setContentsMargins(10, 3, 10, 3)
+            bubble = QLabel(f"💭 {think_content}")
+            bubble.setWordWrap(True)
+            bubble.setMaximumWidth(550)
+            bubble.setStyleSheet(
+                "background-color: #3a3a5c; color: #a6adc8; padding: 10px; "
+                "border-radius: 8px; font-size: 12px; font-style: italic;"
+            )
+            bubble.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Minimum)
+            layout.addWidget(bubble)
+            layout.addStretch()
+            self._insert_bubble(frame)
+            return
+
         frame = QFrame(self.message_container)
         frame.setFrameShape(QFrame.Shape.NoFrame)
         layout = QHBoxLayout(frame)
@@ -643,6 +686,58 @@ class AgentGUI(QMainWindow):
         layout.addWidget(bubble)
         layout.addStretch()
         self._insert_bubble(frame)
+
+    def _clear_think_bubble_markers(self):
+        """清除所有思考气泡的标记，使新的思考内容创建新气泡"""
+        for i in range(self.message_layout.count()):
+            item = self.message_layout.itemAt(i)
+            if item and item.widget():
+                widget = item.widget()
+                if widget.objectName() == "think_bubble_container":
+                    # 将旧思考气泡的objectName改为其他值，这样新的思考内容就不会更新它
+                    widget.setObjectName("think_bubble_container_old")
+
+    def _update_or_create_think_bubble(self, think_content):
+        """更新或创建思考内容气泡，支持流式追加显示"""
+        show_thinking = getattr(config, 'show_ai_thinking', False)
+        if not show_thinking:
+            return
+
+        # 查找最后一个活跃的思考气泡（未被清除标记的）
+        last_think_widget = None
+        for i in range(self.message_layout.count() - 1, -1, -1):
+            item = self.message_layout.itemAt(i)
+            if item and item.widget():
+                widget = item.widget()
+                # 只查找当前对话轮次的思考气泡（objectName为think_bubble_container）
+                if widget.objectName() == "think_bubble_container":
+                    last_think_widget = widget
+                    break
+
+        if last_think_widget:
+            # 更新现有气泡的内容
+            bubble = last_think_widget.findChild(QLabel, "think_bubble_label")
+            if bubble:
+                bubble.setText(f"💭 {think_content}")
+        else:
+            # 创建新的思考气泡
+            frame = QFrame(self.message_container)
+            frame.setObjectName("think_bubble_container")
+            frame.setFrameShape(QFrame.Shape.NoFrame)
+            layout = QHBoxLayout(frame)
+            layout.setContentsMargins(10, 3, 10, 3)
+            bubble = QLabel(f"💭 {think_content}")
+            bubble.setObjectName("think_bubble_label")
+            bubble.setWordWrap(True)
+            bubble.setMaximumWidth(550)
+            bubble.setStyleSheet(
+                "background-color: #3a3a5c; color: #a6adc8; padding: 10px; "
+                "border-radius: 8px; font-size: 12px; font-style: italic;"
+            )
+            bubble.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Minimum)
+            layout.addWidget(bubble)
+            layout.addStretch()
+            self._insert_bubble(frame)
 
     def _scroll_chat_to_bottom(self):
         scrollbar = self.scroll_area.verticalScrollBar()
@@ -1055,6 +1150,9 @@ class AgentGUI(QMainWindow):
         self.agent_stop_event.clear()
         self.agent_running = True
 
+        # 清除旧的思考气泡标记，确保新的思考内容会创建新气泡
+        self._clear_think_bubble_markers()
+
         if self.multi_agent_enabled:
             orchestrator = self.multi_agent_orchestrator
             orchestrator.on_task_list_updated = self.refresh_task_list_window
@@ -1422,6 +1520,7 @@ class AgentGUI(QMainWindow):
             "video_tts_base_url": getattr(config, 'video_tts_base_url', ''),
             "video_tts_model": getattr(config, 'video_tts_model', ''),
             "video_tts_voice": getattr(config, 'video_tts_voice', ''),
+            "model_supports_thinking": getattr(config, 'model_supports_thinking', False),
             "deepseek_thinking_enabled": getattr(config, 'deepseek_thinking_enabled', False),
             "deepseek_reasoning_effort": getattr(config, 'deepseek_reasoning_effort', 'high'),
             "deepseek_context_window": getattr(config, 'deepseek_context_window', 65536),

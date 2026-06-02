@@ -69,15 +69,29 @@ VIDEO_DESIGNER_SYSTEM_PROMPT = """你是一个世界级的视频动效设计师�
         }
     ],
     "resolution": {"width": 1920, "height": 1080},
-    "music_style": "大气/轻松/科技/温暖"
+    "music_style": "大气/轻松/科技/温暖/宁静/电影"
+}
+⚠️ music_style 不是随便写的！它会触发本地自动生成BGM：
+  - "大气"/"电影"/"史诗" → 电影史诗风格（弦乐Pad+上升琶音+大鼓点）
+  - "轻松"/"欢快"/"活力" → 积极向上风格（三角波+方波琶音+流行鼓点）
+  - "科技"/"电子"/"未来" → 电子科技风（锯齿波+电子节奏）
+  - "温暖"/"治愈"/"柔和" → 温柔治愈风格（三角波+软节奏）
+  - "宁静"/"安静"/"平和" → 宁静平和风格（正弦波+无鼓点）
+  如不填 music_style 则不会生成BGM（视频无声）。
 }
 
 ## 致命规则
+0. **🛑 命名准确性（最高优先级！违反则整个视频作废）**:
+   - **必须使用用户指定的确切产品/品牌名称！绝对不能替换、缩写、翻译或编造其他名称！**
+   - 正确: 用户说"TGAI" → 所有标题、文字、旁白中必须写 "TGAI"
+   - 错误: 用户说"TGAI" → 写成 "TG Helper"、"AI助手"、"智能伙伴"、"TechAI" 或其他任何名字
+   - 错误: 用户说"DeepSeek" → 写成 "Deep Seek"、"深度求索"、"DS"
+   - **产品名称是视频的灵魂，是用户的核心诉求，一字不能改！**
 1. **HTML标签属性必须用单引号**：JSON用双引号，HTML标签的属性值用单引号
    正确: <div class='title' style='color:red;'>
    错误: <div class="title" style="color:red;">
    ⚠️ **注意**：CSS代码里的值（如animation、@keyframes）**不需要引号**！
-2. **HTML控制在2500字符内**：包含CSS动画代码和装饰元素
+2. **HTML控制在3500字符内**：包含CSS动画代码和装饰元素（图表/粒子场景允许稍多，仍要精简）
 
 ## CSS 动画规范（核心！动画被逐帧渲染成视频，你可以尽情发挥创意！）
 
@@ -130,6 +144,28 @@ VIDEO_DESIGNER_SYSTEM_PROMPT = """你是一个世界级的视频动效设计师�
    | **textGlow** | 文字发光脉冲 | `0%,80%,100%{text-shadow:0 0 10px currentColor} 40%{text-shadow:0 0 40px currentColor,0 0 80px currentColor}` |
    | **typewriter** | 打字机光标 | `0%,100%{border-color:transparent} 50%{border-color:currentColor}` （配合overflow:hidden）|
 
+   📊 **图表与数据可视化类**（纯CSS实现，不需要JS）:
+
+   | 动画名 | 效果 | @keyframes关键帧 |
+   |--------|------|-----------------|
+   | **growBar** | 柱状图从0增长 | `from{height:0;opacity:0} to{height:var(--barH);opacity:1}` |
+   | **ringFill** | 环形图填充 | `from{stroke-dashoffset:var(--circum)} to{stroke-dashoffset:var(--percent)}` (SVG circle stroke-dasharray) |
+   | **slideList** | 列表条目逐条滑入 | `from{opacity:0;translateX(-40px)} to{opacity:1;translateX(0)}` (每条animation-delay递增) |
+   | **countBar** | 横向进度条 | `from{width:0} to{width:var(--pct)}` |
+   | **dotConnect** | 节点连线展开 | `from{width:0} to{width:var(--lineW)}` (连接线div) |
+
+   🎨 **粒子与几何特效类**（纯视觉动画，用于装饰和内容创作）:
+
+   | 动画名 | 效果 | @keyframes关键帧 |
+   |--------|------|-----------------|
+   | **floatParticle** | 粒子漂浮上升 | `0%{translateY(0) opacity:0} 20%{opacity:1} 100%{translateY(-200px) opacity:0}` |
+   | **orbitSpin** | 轨道旋转 | `from{rotate(0deg)} to{rotate(360deg)}` （设置transform-origin到轨道中心） |
+   | **popBurst** | 爆发扩散 | `0%{scale(0) opacity:1} 100%{scale(1.5) opacity:0}` |
+   | **spinSquare** | 正方形旋转 | `0%{rotate(0deg); border-radius:0%} 50%{border-radius:30%} 100%{rotate(360deg); border-radius:0%}` |
+   | **wavePath** | SVG波浪起伏 | `from{translateX(0)} to{translateX(-50%)}` (两个错位wave并排循环) |
+   | **ripplePulse** | 涟漪扩散 | `0%{scale(0); opacity:0.8} 100%{scale(3); opacity:0}` |
+   | **trailLine** | 拖尾线段 | `0%{width:0; opacity:1} 80%{opacity:0.5} 100%{width:var(--len); opacity:0}` |
+
 4. **缓动曲线库**:
    - `ease-out` — 通用减速（默认推荐）
    - `cubic-bezier(0.34,1.56,0.64,1)` — 弹性弹跳（bounceIn专用）
@@ -141,12 +177,14 @@ VIDEO_DESIGNER_SYSTEM_PROMPT = """你是一个世界级的视频动效设计师�
    - 3个元素: delay=0s, 0.12s, 0.24s
    - 5个元素: delay=0s, 0.1s, 0.2s, 0.3s, 0.4s
 
-6. **创意自由**:
+6. **创意自由（文字、图表、粒子、几何不限！可产出动画片）**:
+   - ✅ 不仅限于文字！你可以设计纯视觉动画：几何图形跳舞、粒子爆炸、数据图表、SVG波浪
    - ✅ 大胆混搭不同类型（标题bounceIn + 副标题slideInLeft + 装饰rotateSlow）
    - ✅ 组合多种持续微动（floatUpDown大圆 + gentlePulse光晕 + rotateSlow小圆）
    - ✅ 用伪元素::before/::after创建额外动画层
    - ✅ 在keyframes中组合多种属性（opacity+translate+scale同帧变化）
    - ✅ 同一个元素可以用`,`分隔绑定多个动画 `.box{animation:slideUp 0.8s both paused, floatUpDown 3s 1s infinite both paused;}`
+   - ✅ 用CSS clip-path、border-radius、transform创造任意几何形状
    - ⚠️ 只需确保使用了**paused**和**both**，动画类型尽情发挥！
 
 ## HTML 视觉设计（要炫！要科技感！）
@@ -161,28 +199,115 @@ VIDEO_DESIGNER_SYSTEM_PROMPT = """你是一个世界级的视频动效设计师�
    - 装饰线条: 细横线 `height:1px; background:linear-gradient(90deg,transparent,rgba(255,255,255,0.3),transparent)` + revealWidth动画
    - 光晕: 用box-shadow+blur制造发光效果
    - 毛玻璃卡片: `background:rgba(255,255,255,0.05); backdrop-filter:blur(10px); border:1px solid rgba(255,255,255,0.1)`
+   - **粒子**: 多个小div(6-15px) + floatParticle/popBurst动画，做出星空、火花、气泡效果
+   - **几何形**: 用`clip-path: polygon(...)`或旋转border-radius的div，配合orbitSpin/spinSquare
 5. **文字效果**:
    - 标题发光: `text-shadow: 0 0 40px rgba(100,120,255,0.6), 0 0 80px rgba(80,100,255,0.3)`
    - 渐变色文字: `background:linear-gradient(90deg,#7b61ff,#42e8ff); -webkit-background-clip:text; -webkit-text-fill-color:transparent`
    - 大标题 80-120px, 副标题 40-56px, 正文 26-34px
 6. **配色**: 根据主题自由选择配色，适配不同风格（科技/温暖/商务/自然）
-7. **图片**: 用户图片用 <img src='[IMG:name]'>；如需AI生成新图片用 <img src='[GEN_IMG:描述]'>（程序会自动替换为图片数据）
+7. **图片**: 用户图片用 <img src='[IMG:name]'>；AI生成装饰/叠加元素用 <img src='[GEN_IMG:描述]'>（自动白底→去底→透明PNG）；AI生成全屏背景用 <div style='background-image: url([GEN_BG:描述])'>（正常生成，不做处理）
 8. **禁止**: 外部资源、滚动条、纯白色文字（无质感）
 
 ## 场景设计原则
-- 场景1（3-4秒）: 爆发式开场！Logo/title bounceIn 弹入+背景光晕pulse
-- 中间场景（4-6秒）: 信息展开，文字slideUp依次入场，装饰元素float+rotate
-- 结尾场景（3-4秒）: 升华收尾，所有元素聚合+最后pulse一次
+- 场景1（3-4秒）: 爆发式开场！Logo/title bounceIn 弹入+背景光晕pulse，或几何图形爆炸式出现
+- 中间场景（4-6秒）: 信息展开，文字slideUp依次入场，装饰元素float+rotate，或图表growBar逐条填充
+- 结尾场景（3-4秒）: 升华收尾，所有元素聚合+最后pulse一次，或粒子汇集/消散
+
+## 数据可视化（图表动画）专属指南
+
+使用**纯CSS+SVG**实现图表，不需要JS库：
+
+**柱状图**: 多个div设置不同`--barH`（css变量），应用growBar动画
+```html
+<div class='chart-bars'>
+  <div class='bar' style='--barH:180px; animation:growBar 0.8s 0s cubic-bezier(0.34,1.56,0.64,1) both paused;'></div>
+  <div class='bar' style='--barH:250px; animation:growBar 0.8s 0.15s cubic-bezier(0.34,1.56,0.64,1) both paused;'></div>
+  <div class='bar' style='--barH:140px; animation:growBar 0.8s 0.3s cubic-bezier(0.34,1.56,0.64,1) both paused;'></div>
+</div>
+```
+CSS: `.bar{width:40px; height:var(--barH); background:linear-gradient(180deg,#7b61ff,#42e8ff); border-radius:4px 4px 0 0; align-self:flex-end;}`
+`.chart-bars{display:flex; gap:30px; align-items:flex-end; height:300px;}`
+
+**环形图（Donut）**: SVG circle + stroke-dasharray
+```html
+<svg width='200' height='200' viewBox='0 0 120 120'>
+  <circle cx='60' cy='60' r='50' fill='none' stroke='rgba(255,255,255,0.1)' stroke-width='12'/>
+  <circle cx='60' cy='60' r='50' fill='none' stroke='url(#grad)' stroke-width='12' stroke-linecap='round'
+    style='--circum:314; --percent:220; stroke-dasharray:314; animation:ringFill 1.5s 0.3s cubic-bezier(0.22,0.61,0.36,1) both paused; transform:rotate(-90deg); transform-origin:center;'/>
+</svg>
+```
+
+**数据列表**: 多个条目用slideList + animation-delay stagger
+```html
+<div class='list'>
+  <div class='item' style='animation-delay:0s;'>📊 用户增长 +45%</div>
+  <div class='item' style='animation-delay:0.15s;'>💰 营收突破 120万</div>
+  <div class='item' style='animation-delay:0.3s;'>🌍 覆盖 30+ 国家</div>
+</div>
+```
+CSS: `.item{animation:slideList 0.6s cubic-bezier(0.22,0.61,0.36,1) both paused;}`
+
+## 粒子特效专属指南
+
+通过**大量小div + floatParticle/popBurst/ripplePulse**创造粒子系统：
+
+**星空/火花粒子**: 6-12个div，每个不同animation-delay + 不同位置
+```html
+<div class='particle' style='left:10%; top:80%; animation:floatParticle 3s 0s ease-out infinite both paused;'></div>
+<div class='particle' style='left:25%; top:70%; animation:floatParticle 3s 0.4s ease-out infinite both paused;'></div>
+<div class='particle' style='left:40%; top:85%; animation:floatParticle 3s 0.8s ease-out infinite both paused;'></div>
+...（6-10个，不同位置和delay）
+```
+CSS: `.particle{position:absolute; width:8px; height:8px; border-radius:50%; background:#42e8ff; box-shadow:0 0 10px #42e8ff;}`
+
+**涟漪（水波效果）**: 3-5个同心圆
+```html
+<div class='ripple' style='animation-delay:0s;'></div>
+<div class='ripple' style='animation-delay:0.4s;'></div>
+<div class='ripple' style='animation-delay:0.8s;'></div>
+```
+CSS: `.ripple{position:absolute; width:40px; height:40px; border-radius:50%; border:2px solid rgba(100,180,255,0.6); animation:ripplePulse 2s ease-out infinite both paused;}`
+
+## 几何图形动画指南
+
+**纯CSS几何形**: 用border-radius + transform + clip-path创造任意形状
+```css
+/* 三角形 */ .tri{width:0; height:0; border-left:40px solid transparent; border-right:40px solid transparent; border-bottom:70px solid #7b61ff;}
+/* 六边形 */ .hex{width:60px; height:34px; background:#42e8ff; clip-path:polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);}
+/* 菱形旋转 */ .dia{width:50px; height:50px; background:linear-gradient(135deg,#7b61ff,#42e8ff); transform:rotate(45deg); animation:spinSquare 4s linear infinite both paused;}
+```
+
+**轨道系统**: 一个大圆（轨道）+ 1-3个小圆（卫星）围绕旋转
+```html
+<div class='orbit'><div class='satellite'></div></div>
+```
+CSS: `.orbit{position:absolute; width:300px; height:300px; border:1px solid rgba(255,255,255,0.08); border-radius:50%;}`
+`.satellite{position:absolute; width:20px; height:20px; background:#42e8ff; border-radius:50%; top:-10px; left:50%; animation:orbitSpin 4s linear infinite both paused; transform-origin:50% calc(50% + 160px);}`
+
+## 创意场景类型（不仅限于文字！）
+- 🎬 **产品介绍**: 标题+功能列表+Logo
+- 📊 **数据报告**: 柱状图+环形图+列表+关键数字
+- ✨ **纯视觉动画片**: 粒子爆炸 → 粒子聚合成Logo → Logo消失粒子散开
+- 🌊 **抽象艺术**: 几何形旋转+波浪+涟漪+颜色渐变变化
+- 🚀 **科技开场**: 粒子星空 → 轨道卫星 → 标题飞入 → 信息展开
 
 ## narration 旁白
 - 每个场景的 narration 是TTS配音的文本
 - 旁白文本根据场景内容写，语速约每秒3-4个汉字
 
-## 带动画的炫酷示例（5s场景）
+## 带动画的炫酷示例（5s场景 — 文字+装饰）
 {
     "html": "<!DOCTYPE html><html><head><style>body{margin:0;overflow:hidden;width:1920px;height:1080px;background:linear-gradient(135deg,#0a0a1a,#1a1040,#0d1b3e);display:flex;align-items:center;justify-content:center;flex-direction:column;font-family:'Microsoft YaHei',sans-serif;position:relative;}body::before{content:'';position:absolute;top:-200px;right:-200px;width:600px;height:600px;background:radial-gradient(circle,rgba(100,120,255,0.15),transparent 70%);border-radius:50%;animation:gentlePulse 4s ease-in-out infinite both paused;}.decor{position:absolute;border:1.5px solid rgba(255,255,255,0.08);border-radius:50%;animation:floatUpDown 5s ease-in-out infinite both paused;}.line{width:0;height:2px;background:linear-gradient(90deg,transparent,rgba(100,150,255,0.5),transparent);animation:revealWidth 0.9s 0.5s cubic-bezier(0.22,0.61,0.36,1) both paused;}@keyframes bounceIn{0%{opacity:0;transform:scale(0.3)}50%{opacity:1;transform:scale(1.08)}70%{transform:scale(0.95)}100%{opacity:1;transform:scale(1)}}@keyframes slideUp{from{opacity:0;transform:translateY(60px)}to{opacity:1;transform:translateY(0)}}@keyframes gentlePulse{0%,100%{opacity:1}50%{opacity:0.55}}@keyframes floatUpDown{0%,100%{transform:translateY(0)}50%{transform:translateY(-18px)}}@keyframes revealWidth{to{width:280px}}h1{font-size:100px;background:linear-gradient(90deg,#7b61ff,#42e8ff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;text-shadow:none;margin:0;animation:bounceIn 0.8s cubic-bezier(0.34,1.56,0.64,1) both paused;}p{font-size:34px;color:#a0b0ff;margin-top:25px;animation:slideUp 0.7s 0.15s cubic-bezier(0.22,0.61,0.36,1) both paused;}</style></head><body><h1>TG HELPER</h1><div class='line'></div><p>你的智能AI伙伴</p><div class='decor' style='width:400px;height:400px;top:-100px;left:-100px;animation-delay:0s;'></div><div class='decor' style='width:250px;height:250px;bottom:-80px;right:-60px;animation-delay:1.5s;'></div></body></html>",
     "duration": 5,
     "narration": "TG HELPER，你的智能AI伙伴，开启无限可能"
+}
+
+## 粒子+几何纯视觉示例（5s场景 — 星空粒子汇聚成Logo）
+{
+    "html": "<!DOCTYPE html><html><head><style>body{margin:0;overflow:hidden;width:1920px;height:1080px;background:#050510;display:flex;align-items:center;justify-content:center;font-family:'Microsoft YaHei',sans-serif;position:relative;}@keyframes floatParticle{0%{translateY(0) opacity:0}20%{opacity:1}100%{translateY(-300px) opacity:0}}@keyframes ripplePulse{0%{scale(0);opacity:0.8}100%{scale(4);opacity:0}}@keyframes bounceIn{0%{opacity:0;scale(0.3)}50%{scale(1.1)}100%{opacity:1;scale(1)}}@keyframes orbitSpin{from{rotate(0deg)}to{rotate(360deg)}}.p{position:absolute;width:6px;height:6px;border-radius:50%;background:#7b61ff;box-shadow:0 0 8px #7b61ff;}.ripple{position:absolute;width:30px;height:30px;border-radius:50%;border:2px solid rgba(123,97,255,0.5);animation:ripplePulse 2s ease-out infinite both paused;}.orbit{position:absolute;width:400px;height:400px;border:1px solid rgba(255,255,255,0.06);border-radius:50%;animation:rotateSlow 20s linear infinite both paused;}.sat{position:absolute;width:12px;height:12px;background:#42e8ff;border-radius:50%;top:-6px;left:50%;animation:orbitSpin 5s linear infinite both paused;transform-origin:50% calc(50% + 206px);box-shadow:0 0 15px #42e8ff;}@keyframes rotateSlow{from{rotate(0deg)}to{rotate(360deg)}}h1{font-size:90px;background:linear-gradient(90deg,#7b61ff,#42e8ff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin:0;z-index:10;animation:bounceIn 0.8s 1.5s cubic-bezier(0.34,1.56,0.64,1) both paused;}</style></head><body><div class='p' style='left:15%;top:90%;animation:floatParticle 3s 0s ease-out infinite both paused;'></div><div class='p' style='left:28%;top:85%;animation:floatParticle 3s 0.3s ease-out infinite both paused;'></div><div class='p' style='left:42%;top:92%;animation:floatParticle 3s 0.6s ease-out infinite both paused;'></div><div class='p' style='left:55%;top:88%;animation:floatParticle 3s 0.9s ease-out infinite both paused;'></div><div class='p' style='left:68%;top:91%;animation:floatParticle 3s 0.15s ease-out infinite both paused;'></div><div class='p' style='left:78%;top:86%;animation:floatParticle 3s 0.45s ease-out infinite both paused;'></div><div class='p' style='left:35%;top:95%;animation:floatParticle 3s 0.75s ease-out infinite both paused;'></div><div class='p' style='left:62%;top:94%;animation:floatParticle 3s 0.2s ease-out infinite both paused; d></div><div class='ripple' style='top:50%;left:50%;animation-delay:0s;'></div><div class='ripple' style='top:50%;left:50%;animation-delay:0.6s;'></div><div class='orbit' style='top:50%;left:50%;margin:-200px 0 0 -200px;'><div class='sat'></div></div><h1>TG HELPER</h1></body></html>",
+    "duration": 5,
+    "narration": "TG HELPER，重新定义AI智能体"
 }"""
 
 
@@ -499,9 +624,20 @@ def _render_html_to_frames_impl(
             page.screenshot(path=frame_path, full_page=False)
             frames.append(frame_path)
 
+        # 尾部定格：等待所有非无限循环动画播放到最终状态，避免截断
+        hold_frames = max(6, fps // 4)
+        page.evaluate("window.__seekTo(999);")
+        page.wait_for_timeout(50)
+        for hf in range(hold_frames):
+            frame_path = os.path.join(
+                output_dir, f"scene_{scene_idx:03d}_f_{(total_frames + hf):06d}.png"
+            )
+            page.screenshot(path=frame_path, full_page=False)
+            frames.append(frame_path)
+
         page.evaluate("window.__destroy();")
 
-        print(f"[VideoGen] 场景{scene_idx} 逐帧渲染: {len(frames)}帧/{duration:.1f}s@{fps}fps")
+        print(f"[VideoGen] 场景{scene_idx} 逐帧渲染: {len(frames)}帧/{duration:.1f}s@{fps}fps (含{hold_frames}帧尾定格)")
         return frames
 
     except Exception as e:
@@ -642,12 +778,46 @@ def _replace_image_placeholders(html: str, full_data_map: dict) -> str:
     return html
 
 
-def _handle_generated_images(html: str, work_dir: str) -> str:
-    """检测HTML中的[GEN_IMG:描述]占位符，调用AI生成图片并替换为base64 data URI"""
-    import re
-    pattern = re.compile(r'\[GEN_IMG:([^\]]+)\]')
+def _remove_white_background(img_path: str) -> str:
+    """去除白色背景，转为透明PNG。白色及近白色像素→透明，边缘平滑过渡。"""
+    try:
+        import numpy as np
+        from PIL import Image
+    except ImportError:
+        print("[VideoGen] numpy/PIL不可用，跳过白底去除")
+        return img_path
 
-    if not pattern.search(html):
+    img = Image.open(img_path).convert("RGBA")
+    arr = np.array(img, dtype=np.float32)
+
+    r, g, b, a = arr[:, :, 0], arr[:, :, 1], arr[:, :, 2], arr[:, :, 3]
+    whiteness = np.maximum(np.maximum(r, g), b)
+
+    mask = np.clip((240.0 - whiteness) / 40.0, 0.0, 1.0)
+
+    arr[:, :, 3] = a * mask
+    arr = np.clip(arr, 0, 255).astype(np.uint8)
+
+    img_out = Image.fromarray(arr, "RGBA")
+    output_path = os.path.splitext(img_path)[0] + "_nobg.png"
+    img_out.save(output_path, "PNG")
+    print(f"[VideoGen] 白底去除完成: {os.path.basename(output_path)}")
+    return output_path
+
+
+def _handle_generated_images(html: str, work_dir: str) -> str:
+    """检测HTML中的[GEN_IMG:描述]和[GEN_BG:描述]占位符，调用AI生成图片并替换为base64 data URI。
+    [GEN_IMG:...] → 装饰/叠加元素：强制白底→自动去底→透明PNG
+    [GEN_BG:...]  → 背景图：正常生成，不做处理"""
+    import re
+
+    img_pattern = re.compile(r'\[GEN_IMG:([^\]]+)\]')
+    bg_pattern = re.compile(r'\[GEN_BG:([^\]]+)\]')
+
+    has_img = img_pattern.search(html)
+    has_bg = bg_pattern.search(html)
+
+    if not has_img and not has_bg:
         return html
 
     try:
@@ -656,21 +826,24 @@ def _handle_generated_images(html: str, work_dir: str) -> str:
         print("[VideoGen] image_generator模块不可用，跳过AI图片生成")
         return html
 
-    def _replace_match(match):
-        prompt = match.group(1).strip()
+    def _gen_and_load(prompt, is_overlay=True):
         if not prompt:
-            return match.group(0)
-        print(f"[VideoGen] AI图片生成请求: {prompt[:120]}...")
+            return None
+
+        if is_overlay:
+            full_prompt = f"{prompt}, white background, studio lighting, centered subject, clean product shot"
+        else:
+            full_prompt = prompt
+
+        label = "覆盖层" if is_overlay else "背景"
+        print(f"[VideoGen] AI图片生成[{label}]: {full_prompt[:120]}...")
         try:
             img_dir = os.path.join(work_dir, "gen_images")
             os.makedirs(img_dir, exist_ok=True)
-            result = gen_img(prompt=prompt, size="16:9", n=1, output_dir=img_dir)
+            result = gen_img(prompt=full_prompt, size="16:9", n=1, output_dir=img_dir)
 
-            # generate_image 返回的是字符串（如 "SUCCESS: 已生成 1 张图片:\n  - /path/to/img.png\n"）
-            # 需要从字符串中解析出文件路径
             img_path = None
             if isinstance(result, str):
-                print(f"[VideoGen] AI图片生成结果: {result[:200]}")
                 if result.startswith("SUCCESS:"):
                     for line in result.split('\n'):
                         line = line.strip()
@@ -679,27 +852,46 @@ def _handle_generated_images(html: str, work_dir: str) -> str:
                             if os.path.isfile(candidate):
                                 img_path = candidate
                                 break
-                if not img_path:
-                    print(f"[VideoGen] AI图片生成返回字符串但无法提取文件路径")
+                else:
+                    print(f"[VideoGen] AI图片生成[{label}] 返回非预期结果: {result[:300]}")
             elif isinstance(result, list) and len(result) > 0:
                 img_path = result[0] if os.path.isfile(result[0]) else None
+            else:
+                print(f"[VideoGen] AI图片生成[{label}] 返回未知类型: {type(result).__name__} = {str(result)[:200]}")
 
             if img_path and os.path.isfile(img_path):
+                if is_overlay:
+                    img_path = _remove_white_background(img_path)
+
                 with open(img_path, "rb") as f:
                     img_data = f.read()
                 b64 = base64.b64encode(img_data).decode("utf-8")
                 uri = f"data:image/png;base64,{b64}"
-                print(f"[VideoGen] AI图片生成成功: {os.path.basename(img_path)} ({len(b64)} chars base64)")
+                print(f"[VideoGen] AI图片生成成功[{label}]: {os.path.basename(img_path)} ({len(b64)} chars)")
                 return uri
             else:
-                print(f"[VideoGen] AI图片生成失败: 未获取到有效文件路径")
+                print(f"[VideoGen] AI图片生成失败[{label}]: 未获取到有效文件路径")
         except Exception as e:
-            print(f"[VideoGen] AI图片生成失败: {type(e).__name__}: {e}")
+            print(f"[VideoGen] AI图片生成失败[{label}]: {type(e).__name__}: {e}")
             import traceback
             traceback.print_exc()
-        return match.group(0)
+        return None
 
-    return pattern.sub(_replace_match, html)
+    if has_img:
+        def _replace_img(match):
+            prompt = match.group(1).strip()
+            uri = _gen_and_load(prompt, is_overlay=True)
+            return uri if uri else match.group(0)
+        html = img_pattern.sub(_replace_img, html)
+
+    if has_bg:
+        def _replace_bg(match):
+            prompt = match.group(1).strip()
+            uri = _gen_and_load(prompt, is_overlay=False)
+            return uri if uri else match.group(0)
+        html = bg_pattern.sub(_replace_bg, html)
+
+    return html
 
 
 def _is_image_gen_available() -> bool:
@@ -970,6 +1162,7 @@ def _fix_json_string_fields(json_str: str) -> str:
 # ==================== 视频大纲规划 ====================
 
 PLANNER_SYSTEM_PROMPT = """你是视频策划师。将视频按每段约15秒拆分为段落大纲。
+**重要**：用户需求中提到的产品/品牌名称必须原封不动地传递到每个段落的 topic 和 narration_text 中，不能替换、缩写或编造。
 只输出JSON:
 {
     "segments": [
@@ -1011,7 +1204,8 @@ def _plan_video_structure(prompt: str, duration: int, segment_secs: int = 15) ->
 
 def _design_video_segment(segment: Dict, placeholder_map: dict, full_data_map: dict,
                          work_dir: str, previous_context: str = "",
-                         image_gen_available: bool = False) -> Optional[Dict]:
+                         image_gen_available: bool = False,
+                         video_prompt: str = "") -> Optional[Dict]:
     """为一个段落(约15秒)设计2-3个HTML场景。使用占位符避免base64撑爆上下文。"""
     seg_index = segment.get("index", 0)
     seg_dur = segment.get("duration", 15)
@@ -1028,36 +1222,38 @@ def _design_video_segment(segment: Dict, placeholder_map: dict, full_data_map: d
     if image_gen_available:
         gen_img_instruction = """
 ## AI图片生成（你可以自由使用）
-你可以在HTML中通过 [GEN_IMG:描述] 让程序实时调用AI生成图片并自动内联到视频中。
+你可以在HTML中使用两种占位符让程序实时调用AI生成图片并自动内联到视频中：
 
-### 格式
-<img src='[GEN_IMG:你的图片描述]' class='装饰类名'>
+### 两种占位符及其用途
+- **[GEN_IMG:描述]**: 用于叠加/装饰元素（Logo、图标、浮动装饰、水印、贴纸、产品展示）
+  → 程序自动处理：要求AI生成白色背景 → 生成后自动去除白底 → 输出带透明通道的PNG
+  → 格式: <img src='[GEN_IMG:你的描述]' class='装饰类名'>
+  → 注意：描述主体内容即可，**不需要**写 "white background" 或 "transparent background"，程序会自动追加
+
+- **[GEN_BG:描述]**: 用于全屏背景图
+  → 正常生成，不做任何背景处理
+  → 格式: <div style='background-image: url([GEN_BG:你的描述])'> 或 <img src='[GEN_BG:你的描述]' class='bg'>
 
 ### 提示词撰写指南（重要！决定图片质量）
 
-**1. 结构公式**: `[主体] + [风格] + [色调/氛围] + [构图/比例] + [特殊要求]`
-   好: `一只简约的几何线条火箭图标，扁平化矢量风格，蓝紫渐变，纯黑背景，1:1正方形`
+**1. 结构公式**: `[主体] + [风格] + [色调/氛围] + [构图/比例]`
+   好: `一只简约的几何线条火箭图标，扁平化矢量风格，蓝紫渐变，1:1正方形`
    差: `火箭`
 
-**2. 透明背景（用于叠加/水印/Logo素材）**:
-   - 要求透明背景: 提示词末尾加上 `transparent background, isolated object, no background`
-   - 适用场景: Logo、图标、浮动装饰元素、水印
-   - 示例: `金色3D盾牌图标，金属质感，transparent background，isolated，用于Logo`
+**2. 叠加元素 [GEN_IMG:...] 的写法**:
+   - 描述主体即可，程序会自动添加白底并去除
+   - Logo/图标: `金色3D盾牌图标，金属质感，居中`
+   - 产品展示: `智能手机正面视图，银色金属边框，屏幕点亮蓝色`
+   - 浮动装饰: `发光粒子球体，霓虹蓝色，全息透明感`
+   - 水印/贴纸: `简约品牌文字 Logo，半透明玻璃质感`
 
-**3. 纯色/渐变背景（用于全屏背景）**:
-   - 示例: `抽象科技波浪线条，深蓝到紫色渐变背景，几何网格，16:9`
+**3. 背景图 [GEN_BG:...] 的写法**:
+   - 描述整体场景/氛围，不需要白底
+   - 示例: `抽象科技波浪线条，深蓝到紫色渐变，几何网格，16:9`
+   - 示例: `星空宇宙，紫色星云，深邃太空，粒子散射`
+   - 示例: `极简办公桌面，柔光窗口，温暖色调，景深模糊`
 
-**4. 抠图素材（主体+背景分离，方便合成）**:
-   - 要求主体突出: `产品展示手机，正面视图，白色背景，干净产品摄影，主体居中突出`
-   - 此类图片配合CSS混色/遮罩可实现抠图效果
-
-**5. 比例选择**:
-   - 全屏背景: 16:9 (1792x1024)
-   - Logo/图标: 1:1 (1024x1024)
-   - 装饰竖条: 9:16 (1024x1792)
-   - 宽横幅: 21:9
-
-**6. 风格关键词速查**:
+**4. 风格关键词速查**:
    - 科技风: `futuristic, holographic, neon glow, dark theme, cyberpunk, glassmorphism`
    - 商务风: `clean, professional, corporate, minimal, elegant, geometric`
    - 温暖风: `warm lighting, soft pastel, cozy, organic shapes, hand-drawn`
@@ -1065,17 +1261,28 @@ def _design_video_segment(segment: Dict, placeholder_map: dict, full_data_map: d
    - 抽象装饰: `abstract fluid, geometric pattern, gradient mesh, bokeh, particle`
    - 插画风: `flat vector illustration, isometric, line art, duotone, retro poster`
 
-**7. 注意事项**:
-   - 视频分辨率1920x1080，背景图建议用16:9
-   - 装饰元素用小尺寸(1:1)更省token
-   - Logo/水印类务必要求透明背景"""
+**5. 注意事项**:
+   - 视频分辨率1920x1080，背景图用 [GEN_BG:...]
+   - Logo/图标/装饰/产品展示 用 [GEN_IMG:...]，程序自动输出透明PNG
+   - 不需要手动写 "transparent background" 或 "white background"，程序全自动处理
+   - 💡 提示：你可以同时使用 AI 生成图片 + CSS 动画，两者不冲突！比如背景用 [GEN_BG:...] 生成，前景装饰用 CSS 粒子/几何
+
+**6. CSS 纯代码动画能力（与图片生成互补）**:
+   - CSS柱状图(growBar)、SVG环形图(ringFill)、数据列表(slideList)
+   - 粒子(floatParticle)、涟漪(ripplePulse)、轨道(orbitSpin)、几何(clip-path)
+   - 📊 图表数据用纯CSS更高效，装饰/Logo/背景用 [GEN_IMG]/[GEN_BG] 生成
+   - 两者搭配使用效果最佳！"""
 
 
-    design_prompt = f"""设计视频第{seg_index+1}段，约{seg_dur}秒，主题: {topic}。
+    design_prompt = f"""原始用户需求: {video_prompt}
+---
+设计视频第{seg_index+1}段，约{seg_dur}秒，主题: {topic}。
 总视频上下文: {previous_context}
 {image_context}
 {gen_img_instruction}
-输出JSON，含2-3个场景。HTML要极简（每场景≤1500字符），属性用单引号。图片用 [IMG:name] 或 [GEN_IMG:描述] 占位符。"""
+🎬 **可用能力速查**：AI图片 [GEN_IMG]/[GEN_BG] + CSS图表(growBar/ringFill) + 粒子(floatParticle/ripplePulse) + 几何(orbitSpin/clip-path) + 文字动画(bounceIn/slideUp)
+⚠️ 再次强调：HTML中的标题、文字、旁白中出现的产品/品牌名称，必须与原始用户需求中的名称完全一致，不允许替换或修改！
+输出JSON，含2-3个场景。HTML要极简（每场景≤3500字符），属性用单引号。图片用 [IMG:name] 或 [GEN_IMG:描述] 或 [GEN_BG:描述] 占位符。"""
 
     content = _call_ai(VIDEO_DESIGNER_SYSTEM_PROMPT, design_prompt, 8000)
     if content:
@@ -1242,6 +1449,8 @@ def generate_video(
     else:
         output_path = os.path.abspath(output_path)
 
+    auto_music_style = None
+
     try:
         # 兼容旧格式
         if scenes and not prompt:
@@ -1280,10 +1489,14 @@ def generate_video(
 
             # 子Agent设计场景（使用占位符避免base64撑爆上下文）
             scene_data = _design_video_segment(seg, images_placeholder, images_full,
-                                               work_dir, context, img_gen_available)
+                                               work_dir, context, img_gen_available,
+                                               video_prompt=prompt)
             if not scene_data:
                 print(f"[VideoGen] 段落{seg['index']} 设计失败，跳过")
                 continue
+
+            if auto_music_style is None and scene_data.get("music_style"):
+                auto_music_style = scene_data.get("music_style")
 
             # 渲染为MP4
             mp4 = _render_segment_to_mp4(seg, scene_data, work_dir, width, height, tts_voice, fps)
@@ -1329,6 +1542,10 @@ def generate_video(
                 print(f"[VideoGen] BGM失败: {type(e).__name__}: {e}")
                 import traceback
                 traceback.print_exc()
+
+        elif auto_music_style and (not bg_music_path or not os.path.isfile(str(bg_music_path or ''))):
+            print(f"[VideoGen] music_style={auto_music_style} 已记录，但自动BGM已移除。"
+                  f"如需BGM请先用 compose_music() 生成音乐，再将路径传入 bg_music_path。")
 
         # 第5步：输出
         print(f"[VideoGen] 渲染最终视频 {final_video.duration:.1f}s -> {output_path}")

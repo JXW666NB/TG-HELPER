@@ -81,8 +81,10 @@ class AgentConfig:
         self.gui_theme = user_config.get("gui_theme", "darkly")
         self.inspector_enabled = user_config.get("inspector_enabled", False)
         self.inspector_interval = user_config.get("inspector_interval", 3600)
-# 新增：浏览器有头/无头模式，默认无头（False=不显示窗口）
+        # 新增：浏览器有头/无头模式，默认无头（False=不显示窗口）
         self.browser_headful = user_config.get("browser_headful", False)
+        # 新增：是否在聊天框中显示AI思考内容（默认开启）
+        self.show_ai_thinking = user_config.get("show_ai_thinking", True)
         # 多Agent模式
         self.multi_agent_enabled = user_config.get("multi_agent_enabled", False)
         self.multi_agent_planner_persona = user_config.get("multi_agent_planner_persona", "TGAI")
@@ -103,7 +105,9 @@ class AgentConfig:
         self.video_tts_base_url = user_config.get("video_tts_base_url", "")
         self.video_tts_model = user_config.get("video_tts_model", "")
         self.video_tts_voice = user_config.get("video_tts_voice", "")
-        # ==================== DeepSeek 专属配置 ====================
+        # ==================== 深度思考配置 ====================
+        # 用户确认当前模型是否支持深度思考（reasoning/thinking）
+        self.model_supports_thinking = user_config.get("model_supports_thinking", False)
         self.deepseek_thinking_enabled = user_config.get("deepseek_thinking_enabled", False)
         self.deepseek_reasoning_effort = user_config.get("deepseek_reasoning_effort", "high")
         self.deepseek_context_window = user_config.get("deepseek_context_window", 65536)

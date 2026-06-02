@@ -344,7 +344,7 @@ class MultiAgentOrchestrator:
             f"原始需求：{self.original_request}\n"
             f"当前任务：{task.description}\n"
             "请执行该任务，完成后简短报告结果。如果遇到无法解决的困难，用 '@Planner' 开头说明问题。"
-            f"""所有可用工具都分类存放在 ./tool_prompts/ 文件夹中。你k可以使用以下基础工具来读取分类文件，获取工具列表和注意事项：
+            f"""所有可用工具都分类存放在 ./tool_prompts/ 文件夹中。你可以使用以下基础工具来读取分类文件，获取工具列表和注意事项：
 
 - read_tool_prompt(keyword): **推荐** 只需传简短关键词（如"网络"），自动匹配完整文件名。强烈推荐使用此工具代替 read_file。
 - read_file(filepath, max_chars=800000): 读取文件内容（仅当 read_tool_prompt 找不到时使用）。

@@ -1,0 +1,105 @@
+【工具列表】
+
+1. compose_music(prompt, duration, key, bpm) - AI 作曲（子Agent架构）
+
+【核心机制】
+
+子Agent架构（与 generate_video 完全相同）：
+  主Agent → 给出prompt → 子Agent(LLM+乐理知识) 设计音乐结构 → JSON → MIDI导出 → 多乐器合成渲染 → MP3
+
+子Agent是独立的AI调用，不会污染主Agent的记忆和上下文。
+
+子Agent掌握的乐理知识：
+  - 12个大调/小调音阶
+  - 12种经典和弦进行（I-V-vi-IV、ii-V-I等）
+  - 歌曲结构设计（前奏/主歌/预副歌/副歌/间奏/尾声）
+  - 配器法：20+种乐器的编写规范
+  - 音符编码格式、时值计算、和弦构建
+
+【参数说明】
+
+- prompt: 音乐创作需求（最重要！描述风格、情绪、乐器、参考等）
+  - 例如："一段温馨治愈的钢琴+小提琴合奏，C大调，久石让风格"
+  - 例如："电影史诗配乐，弦乐+铜管+定音鼓，D小调，汉斯季默风格"
+  - 例如："轻快的爵士钢琴三重奏（钢琴+贝斯+鼓），F大调，Bill Evans风格"
+
+- duration: 音乐时长秒数（默认60，建议30-120）
+- key: 调性，可选 C/D/E/F/G/A/B（默认C）
+- bpm: 速度，不指定则子Agent根据风格自行决定
+
+【支持的乐器】
+
+钢琴类: piano, grand_piano, bright_piano, electric_piano
+弦乐类: violin, viola, cello, contrabass, strings, harp
+吉他类: guitar, acoustic_guitar, electric_guitar
+贝斯类: bass, acoustic_bass
+铜管类: trumpet, trombone, french_horn
+木管类: flute, oboe, clarinet, sax, alto_sax
+合成器: synth_pad, synth_lead
+人声: choir
+打击乐: drums (kick/snare/hat/ohh/crash/ride/tom_l/tom_h)
+
+【输出产物】
+
+1. MP3 音频文件（默认192kbps）
+2. MIDI 文件（可导入 DAW 编辑，含多轨道+程序变更）
+3. 子Agent生成的完整乐谱数据（JSON格式，可查看）
+
+【完整工作流】
+
+用户: "帮我创作一首温暖的钢琴曲"
+  → 主Agent: 调用 compose_music(prompt="温暖的钢琴曲", key="C", duration=60)
+  → 子Agent(LLM) 被调用，学习乐理知识后创作:
+     - 分析需求 → 选择C大调、72BPM、钢琴独奏
+     - 设计结构: Intro(4bars) → Verse(8bars) → Chorus(8bars) → Outro(4bars)
+     - 编写每段的chords、旋律线
+     - 输出完整JSON
+  → 程序解析JSON → 导出MIDI → 多乐器合成渲染 → WAV → MP3
+  → 返回 MP3 路径
+
+【使用示例】
+
+示例1：钢琴独奏
+```
+compose_music(
+    prompt="一首温暖治愈的钢琴独奏曲，C大调，久石让风格，30秒",
+    key="C",
+    duration=30
+)
+```
+
+示例2：弦乐四重奏
+```
+compose_music(
+    prompt="弦乐四重奏（两把小提琴+中提琴+大提琴），G大调，莫扎特风格古典室内乐",
+    key="G",
+    duration=90
+)
+```
+
+示例3：电子流行
+```
+compose_music(
+    prompt="电子流行音乐，合成器主音+电吉他+鼓，A小调，Daft Punk风格",
+    key="A",
+    duration=60
+)
+```
+
+示例4：电影配乐
+```
+compose_music(
+    prompt="史诗电影配乐，弦乐合奏+圆号+定音鼓+合唱，D小调，汉斯季默风格，120秒",
+    key="D",
+    duration=120
+)
+```
+
+【注意事项】
+
+1. prompt 是唯一核心参数！写得越具体越好（风格+乐器+情绪+参考）
+2. 子Agent会自动根据 prompt 选择合适的乐器、BPM、结构
+3. 生成过程：子Agent作曲(3-10s) + 音频渲染(1-5s) = 总共约5-15秒
+4. 同时输出 MP3 + MIDI，MIDI 可导入 DAW 二次编辑
+5. 音质受限于本地合成引擎（非真实乐器采样），但旋律和结构的质量由 LLM 保证
+6. 如需更高质量音频，可将生成的 MIDI 导入 DAW 挂载真实音源渲染
