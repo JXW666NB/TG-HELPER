@@ -279,6 +279,9 @@ class ConfigWizard(QDialog):
         self.current_widget = widget
 
     def show_api_config(self):
+        # 在清除页面之前，先保存上一页的模型选择状态
+        self._saved_model = self.model_combo.currentText()
+        self._saved_deploy = self.deploy_check.isChecked()
         self.clear_frame()
         widget = QWidget()
         layout = QVBoxLayout(widget)
@@ -323,14 +326,14 @@ class ConfigWizard(QDialog):
         self.config["ai_api_key"] = self.api_key_entry.text()
         self.config["ai_base_url"] = self.base_url_entry.text()
         self.config["ai_model"] = self.model_entry.text()
-        self.config["local_model"] = self.model_combo.currentText()
-        self.config["local_model_deploy"] = self.deploy_check.isChecked()
+        self.config["local_model"] = self._saved_model
+        self.config["local_model_deploy"] = self._saved_deploy
         self.config["hardware_grade"] = self.hardware_grade
 
         with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
             json.dump(self.config, f, indent=2)
 
-        if self.deploy_check.isChecked():
+        if self._saved_deploy:
             self.start_deploy()
         else:
             self.launch_main()
@@ -342,7 +345,7 @@ class ConfigWizard(QDialog):
 
         deploy_layout = QVBoxLayout(self.deploy_dialog)
 
-        model_name = self.model_combo.currentText()
+        model_name = self._saved_model
         label = QLabel(f"正在部署 {model_name}...")
         label.setFont(QFont("微软雅黑", 12))
         label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -374,7 +377,7 @@ class ConfigWizard(QDialog):
         manager = LocalModelManager()
         threading.Thread(
             target=lambda: manager.deploy_model(
-                self.model_combo.currentText(),
+                self._saved_model,
                 callback=deploy_callback
             ),
             daemon=True

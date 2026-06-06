@@ -44,14 +44,21 @@ class Tools:
         self.task_scheduler = task_scheduler
         self.skill_manager = skill_manager or SkillManager(getattr(config, 'skills_dirs', ["./skills"]))
         self.gui = gui
-        self.client = OpenAI(
-            api_key=config.ai_api_key,
-            base_url=config.ai_base_url
-        )
+        self._client = None
         # 插件注册的工具表：{tool_name: {"description": str, "parameters": dict, "plugin_id": str}}
         self._plugin_tools: dict = {}
         os.makedirs("./screenshots", exist_ok=True)
         os.makedirs("./downloads", exist_ok=True)
+
+    @property
+    def client(self):
+        if self._client is None:
+            api_key = getattr(config, 'ai_api_key', '') or ''
+            base_url = getattr(config, 'ai_base_url', 'https://api.moonshot.cn/v1') or 'https://api.moonshot.cn/v1'
+            if not api_key:
+                raise OpenAIError("Missing credentials. 请在设置中配置 API Key。")
+            self._client = OpenAI(api_key=api_key, base_url=base_url)
+        return self._client
 
     def register_plugin_tool(self, tool_name: str, description: str, parameters: dict, plugin_id: str):
         """供插件系统调用，注册插件提供的工具"""

@@ -13,3 +13,4 @@ config/scheduled_tasks.json
 generate_midi.py
 *.log
 .DS_Store
+TGAI/

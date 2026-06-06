@@ -114,6 +114,7 @@ class AIAgent:
 5. <final> 标签内部必须是纯 JSON 对象（不含代码块标记）。
 
 【核心原则 - 你必须时刻记住】
+0.请扮演你的人格角色，严格按照你的人设，不要OOC
 1. **原始目标**：用户的第一次请求就是你的最终目标。每次行动前问自己："这一步是否在推进用户的原始目标？"
 2. **先侦察后行动**：对于网页/爬虫任务，先用 browser_extract_all_text 或 browser_get_page_html 完整了解页面结构，确认目标数据的 CSS 选择器或 DOM 路径，再批量提取。不要盲目猜测。
 3. **数据产出优先**：爬虫任务的最终产出是结构化数据（Excel/CSV/文本文件），不是"我看到了什么"。提取完数据立即用 write_excel 或 write_file 保存。
@@ -175,13 +176,29 @@ class AIAgent:
 3. 按文件中的指导调用工具。工具返回 SUCCESS/ERROR/INFO 前缀，但部分工具返回自定义格式，请根据实际返回判断。
 4. 如果工具调用失败，优先根据错误信息尝试修正参数或更换工具，而不是重读文件。
 
-【输出格式 - 铁律】
-你的完整输出格式必须是：
-  <think>你的内部思考过程...</think>
-  <final>{"thought": "当前思考", "message": "对用户说的话", "action": "工具名", "action_input": {参数}}</final>
-  或
-  <think>你的内部思考过程...</think>
-  <final>{"finish": true, "message": "最终回复"}</final>
+【输出格式 - 铁律 - 最高优先级】
+⚠️ 你必须、一定、绝对要严格按照以下格式输出，任何偏差都会导致程序崩溃：
+
+格式模板（复制使用）：
+<think>你的内部思考过程...</think>
+<final>{"thought": "当前思考", "message": "你对用户说的话", "action": "工具名", "action_input": {参数}}</final>
+
+或任务完成时：
+<think>你的内部思考过程...</think>
+<final>{"finish": true, "message": "最终回复"}</final>
+
+❌ 绝对禁止的行为：
+1. 不要输出纯JSON（不带<think>和<final>标签）
+2. 不要在<think>标签内写JSON格式的内容
+3. 不要在<final>标签外添加任何其他文字、解释、markdown代码块标记
+4. 不要使用 ```json 代码块包裹<final>内容
+5. 不要省略<think>或<final>标签
+
+✅ 必须遵守：
+1. 每次回复都必须包含<think>...</think>和<final>...</final>
+2. <think>内只写纯文本思考过程，不要写代码、不要写JSON
+3. <final>内必须是合法的JSON对象，且JSON前后不能有其他字符
+4. 如果不需要调用工具，action和action_input字段可以省略
 
 【重要！长内容规则】
 生成超过500字符的代码/文档/数据时，绝对不要放在 message 字段！使用 write_file 写入文件，message 只说"已生成文件 xxx"。
@@ -417,7 +434,7 @@ class AIAgent:
                     reasoning_content = message.get("thinking", "")
 
                 # 如果有思考内容，包装成 <think> 标签格式
-                if reasoning_content and thinking_enabled:
+                if reasoning_content:
                     return f"<think>{reasoning_content}</think>\n<final>{content}</final>"
 
                 return content
@@ -508,14 +525,16 @@ class AIAgent:
         action_history = []
 
         def extract_think_final(text):
-            """提取 <think> 和 <final> 标签内容，返回 (think_content, final_content)"""
+            """提取 <think>/<thinking> 和 <final> 标签内容，返回 (think_content, final_content)"""
             if not isinstance(text, str):
                 text = str(text)
             think_content = ""
             final_content = text
 
-            # 提取 <think>...</think>
+            # 提取 <think>...</think> 或 <thinking>...</thinking>
             think_match = re.search(r'<think>([\s\S]*?)</think>', text, re.DOTALL)
+            if not think_match:
+                think_match = re.search(r'<thinking>([\s\S]*?)</thinking>', text, re.DOTALL)
             if think_match:
                 think_content = think_match.group(1).strip()
 
@@ -525,6 +544,9 @@ class AIAgent:
                 final_content = final_match.group(1).strip()
             else:
                 # 兼容旧格式：没有 <final> 标签时，尝试提取 JSON
+                # 但先检查是否有 <think> 标签却没有 <final> 标签（常见错误）
+                if think_match:
+                    print(f"[FormatWarning] 检测到 <think> 标签但缺少 <final> 标签，尝试从文本中提取 JSON")
                 final_match = re.search(r'\{[\s\S]*?\}', text, re.DOTALL)
                 if final_match:
                     final_content = final_match.group(0).strip()
@@ -534,15 +556,20 @@ class AIAgent:
         def extract_json(text):
             if not isinstance(text, str):
                 text = str(text)
+            # 预处理：去掉常见污染字符
+            cleaned = text.strip()
+            # 去掉 BOM 头
+            if cleaned.startswith('\ufeff'):
+                cleaned = cleaned[1:]
             # 尝试提取 ```json ... ``` 块
             pattern = r'```(?:json)?\s*([\s\S]*?)\s*```'
-            match = re.search(pattern, text)
+            match = re.search(pattern, cleaned)
             if match:
                 return match.group(1).strip()
-            # 尝试直接找到最外层花括号
+            # 尝试直接找到最外层花括号（使用栈匹配，处理嵌套）
             stack = []
             start = -1
-            for i, ch in enumerate(text):
+            for i, ch in enumerate(cleaned):
                 if ch == '{':
                     if not stack:
                         start = i
@@ -551,14 +578,14 @@ class AIAgent:
                     if stack:
                         stack.pop()
                         if not stack and start != -1:
-                            return text[start:i+1].strip()
+                            return cleaned[start:i+1].strip()
             # 如果还是找不到，尝试匹配 "action" 字段周围的内容（宽松提取）
-            action_match = re.search(r'"action"\s*:\s*"([^"]+)"', text)
+            action_match = re.search(r'"action"\s*:\s*"([^"]+)"', cleaned)
             if action_match:
                 # 构造一个最小可解析 JSON
                 fake_json = '{"action": "' + action_match.group(1) + '", "message": "检测到不完整JSON，已尝试提取action"}'
                 return fake_json
-            return text.strip()
+            return cleaned
 
         while iteration < max_iterations:
             # 检查外部中断
@@ -596,9 +623,11 @@ class AIAgent:
             # 提取 think 和 final 内容
             think_content, final_content = extract_think_final(ai_response_str)
 
-            # 如果有思考内容，通过系统输出回调传递（供GUI选择是否显示）
-            # 注意：流式模式下思考内容已经在流式过程中实时发送过了，这里不再重复发送
+            # 如果有思考内容，存入短期记忆并传递给GUI显示
             if think_content:
+                # 思考内容可能很长，截断后存入记忆（保留前300字）
+                think_for_memory = think_content[:300] + "..." if len(think_content) > 300 else think_content
+                self.memory.add_short_term("思考", think_for_memory)
                 # 检查是否是流式模式返回的结果（包含<final>标签说明是流式模式）
                 is_stream_result = '<final>' in ai_response_str and '</final>' in ai_response_str
                 if not is_stream_result:
@@ -621,10 +650,26 @@ class AIAgent:
                 else:
                     ai_response = parsed
             except json.JSONDecodeError as e:
-                error_msg = f"AI 返回的格式无法解析：{ai_response_str[:200]}"
-                self.system_output_callback(error_msg)
-                self.memory.add_short_term("系统消息", error_msg)
-                break
+                # 详细记录格式错误，帮助诊断提示词问题
+                error_detail = f"JSON解析失败: {str(e)} | 原始内容前300字: {ai_response_str[:300]}"
+                print(f"[FormatError] {error_detail}")
+                # 尝试自动修正常见格式错误
+                fixed_str = ai_response_str
+                # 修正1: 去掉可能的 markdown 代码块标记
+                fixed_str = re.sub(r'^```\w*\n?', '', fixed_str)
+                fixed_str = re.sub(r'\n?```$', '', fixed_str)
+                # 修正2: 去掉 <think> 或 <final> 标签残留
+                fixed_str = re.sub(r'</?think>', '', fixed_str)
+                fixed_str = re.sub(r'</?final>', '', fixed_str)
+                fixed_str = fixed_str.strip()
+                try:
+                    ai_response = json.loads(fixed_str)
+                    print(f"[FormatError] 自动修正后解析成功")
+                except json.JSONDecodeError:
+                    error_msg = f"AI 返回的格式无法解析，已尝试自动修正失败。请检查系统提示词是否足够强调输出格式要求。原始错误: {str(e)}"
+                    self.system_output_callback(error_msg)
+                    self.memory.add_short_term("系统消息", error_msg)
+                    break
 
             if "message" in ai_response:
                 self.output_callback(ai_response['message'])
@@ -700,3 +745,4 @@ class AIAgent:
         if iteration >= max_iterations:
             self.system_output_callback("任务步骤过多，已自动停止。请简化您的需求。")
             self.memory.add_short_term("系统消息", "任务步骤过多，已自动停止。")
+
