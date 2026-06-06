@@ -1,0 +1,195 @@
+{
+  "ultra": [
+    {
+      "name": "FLUX.1-dev",
+      "display_name": "FLUX.1 [dev]",
+      "type": "checkpoint",
+      "size": "11.6B",
+      "vram": 12,
+      "ram": 32,
+      "hf_repo": "black-forest-labs/FLUX.1-dev",
+      "hf_file": "flux1-dev.safetensors",
+      "civitai_url": "",
+      "source": "huggingface",
+      "description": "FLUX.1 dev 版本，11.6B参数，顶级画质，支持文生图/图生图",
+      "download_urls": {
+        "huggingface": "https://huggingface.co/black-forest-labs/FLUX.1-dev/resolve/main/flux1-dev.safetensors",
+        "hf_mirror_cn": "https://hf-mirror.com/black-forest-labs/FLUX.1-dev/resolve/main/flux1-dev.safetensors"
+      }
+    },
+    {
+      "name": "sd3.5-large",
+      "display_name": "Stable Diffusion 3.5 Large",
+      "type": "checkpoint",
+      "size": "8B",
+      "vram": 12,
+      "ram": 32,
+      "hf_repo": "stabilityai/stable-diffusion-3.5-large",
+      "hf_file": "sd3.5_large.safetensors",
+      "source": "huggingface",
+      "description": "SD 3.5 Large 8B，支持文本渲染，高质量生成",
+      "download_urls": {
+        "huggingface": "https://huggingface.co/stabilityai/stable-diffusion-3.5-large/resolve/main/sd3.5_large.safetensors",
+        "hf_mirror_cn": "https://hf-mirror.com/stabilityai/stable-diffusion-3.5-large/resolve/main/sd3.5_large.safetensors"
+      }
+    },
+    {
+      "name": "juggernautXL-v11",
+      "display_name": "Juggernaut XL V11 (SDXL)",
+      "type": "checkpoint",
+      "size": "6.94GB",
+      "vram": 8,
+      "ram": 16,
+      "source": "civitai",
+      "description": "SDXL 最强微调模型之一，写实风格顶级效果",
+      "civitai_id": "274049",
+      "download_urls": {
+        "civitai": "https://civitai.com/api/download/models/274049",
+        "hf_mirror_cn": ""
+      }
+    }
+  ],
+  "high": [
+    {
+      "name": "FLUX.1-schnell",
+      "display_name": "FLUX.1 [schnell]",
+      "type": "checkpoint",
+      "size": "12B",
+      "vram": 8,
+      "ram": 16,
+      "hf_repo": "black-forest-labs/FLUX.1-schnell",
+      "hf_file": "flux1-schnell.safetensors",
+      "source": "huggingface",
+      "description": "FLUX.1 快速版，4步出图，性能与画质平衡",
+      "download_urls": {
+        "huggingface": "https://huggingface.co/black-forest-labs/FLUX.1-schnell/resolve/main/flux1-schnell.safetensors",
+        "hf_mirror_cn": "https://hf-mirror.com/black-forest-labs/FLUX.1-schnell/resolve/main/flux1-schnell.safetensors"
+      }
+    },
+    {
+      "name": "sd3.5-medium",
+      "display_name": "Stable Diffusion 3.5 Medium",
+      "type": "checkpoint",
+      "size": "2.6B",
+      "vram": 8,
+      "ram": 16,
+      "hf_repo": "stabilityai/stable-diffusion-3.5-medium",
+      "hf_file": "sd3.5_medium.safetensors",
+      "source": "huggingface",
+      "description": "SD 3.5 Medium，2.6B参数，性能均衡",
+      "download_urls": {
+        "huggingface": "https://huggingface.co/stabilityai/stable-diffusion-3.5-medium/resolve/main/sd3.5_medium.safetensors",
+        "hf_mirror_cn": "https://hf-mirror.com/stabilityai/stable-diffusion-3.5-medium/resolve/main/sd3.5_medium.safetensors"
+      }
+    },
+    {
+      "name": "dreamshaperXL-v21",
+      "display_name": "DreamShaper XL v2.1 (SDXL)",
+      "type": "checkpoint",
+      "size": "6.94GB",
+      "vram": 8,
+      "ram": 16,
+      "source": "civitai",
+      "description": "SDXL 通用微调模型，多风格适用",
+      "civitai_id": "251636",
+      "download_urls": {
+        "civitai": "https://civitai.com/api/download/models/251636",
+        "hf_mirror_cn": ""
+      }
+    },
+    {
+      "name": "realvisxlV50-v50",
+      "display_name": "RealVisXL V5.0 (SDXL)",
+      "type": "checkpoint",
+      "size": "6.94GB",
+      "vram": 8,
+      "ram": 16,
+      "source": "civitai",
+      "description": "SDXL 写实风格，人物/场景真实感强",
+      "civitai_id": "270049",
+      "download_urls": {
+        "civitai": "https://civitai.com/api/download/models/270049",
+        "hf_mirror_cn": ""
+      }
+    }
+  ],
+  "mid": [
+    {
+      "name": "sd15-realistic-vision-v61",
+      "display_name": "Realistic Vision V6.1 (SD1.5)",
+      "type": "checkpoint",
+      "size": "2.13GB",
+      "vram": 4,
+      "ram": 8,
+      "source": "civitai",
+      "description": "SD 1.5 写实模型，4GB 显存可跑，兼容性好",
+      "civitai_id": "245632",
+      "download_urls": {
+        "civitai": "https://civitai.com/api/download/models/245632",
+        "hf_mirror_cn": ""
+      }
+    },
+    {
+      "name": "sd15-dreamshaper-v8",
+      "display_name": "DreamShaper V8 (SD1.5)",
+      "type": "checkpoint",
+      "size": "2.13GB",
+      "vram": 4,
+      "ram": 8,
+      "source": "civitai",
+      "description": "SD 1.5 通用模型，多风格适用，速度快",
+      "civitai_id": "112902",
+      "download_urls": {
+        "civitai": "https://civitai.com/api/download/models/112902",
+        "hf_mirror_cn": ""
+      }
+    },
+    {
+      "name": "animagineXLV31-v31",
+      "display_name": "Animagine XL V3.1 (SDXL-turbo)",
+      "type": "checkpoint",
+      "size": "6.94GB",
+      "vram": 6,
+      "ram": 8,
+      "source": "civitai",
+      "description": "SDXL 动漫风格，Turbo 加速，中等配置可跑",
+      "civitai_id": "280485",
+      "download_urls": {
+        "civitai": "https://civitai.com/api/download/models/280485",
+        "hf_mirror_cn": ""
+      }
+    }
+  ],
+  "low": [
+    {
+      "name": "sd15-pruned-anything-v5",
+      "display_name": "Anything V5 (SD1.5 精简版)",
+      "type": "checkpoint",
+      "size": "2.13GB",
+      "vram": 4,
+      "ram": 6,
+      "source": "civitai",
+      "description": "SD 1.5 动漫模型，低显存可跑，兼容性好",
+      "civitai_id": "68219",
+      "download_urls": {
+        "civitai": "https://civitai.com/api/download/models/68219",
+        "hf_mirror_cn": ""
+      }
+    },
+    {
+      "name": "sd15-chilloutmix",
+      "display_name": "ChilloutMix (SD1.5)",
+      "type": "checkpoint",
+      "size": "2.13GB",
+      "vram": 4,
+      "ram": 6,
+      "source": "civitai",
+      "description": "SD 1.5 真人模型，低配友好",
+      "civitai_id": "17755",
+      "download_urls": {
+        "civitai": "https://civitai.com/api/download/models/17755",
+        "hf_mirror_cn": ""
+      }
+    }
+  ]
+}
